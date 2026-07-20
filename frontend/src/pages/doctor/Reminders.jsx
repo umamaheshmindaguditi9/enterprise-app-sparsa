@@ -100,9 +100,9 @@ export default function DoctorReminders() {
   });
 
   return (
-    <div className="p-8 max-w-4xl mx-auto" data-testid="reminders-page">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto" data-testid="reminders-page">
       <div className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1">Doctor</div>
-      <h1 className="font-display text-3xl font-semibold tracking-tight text-gray-900 mb-1">Reminders</h1>
+      <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900 mb-1">Reminders</h1>
       <p className="text-sm text-gray-500 mb-6">All times shown in IST · Mark done when patient confirms or visit happens.</p>
 
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">

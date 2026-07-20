@@ -36,17 +36,17 @@ export default function ReceptionDashboard() {
   });
 
   return (
-    <div className="p-8 max-w-7xl mx-auto" data-testid="reception-dashboard">
-      <div className="flex items-end justify-between mb-8">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto" data-testid="reception-dashboard">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6 sm:mb-8">
         <div>
           <div className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1">Reception</div>
-          <h1 className="font-display text-3xl font-semibold tracking-tight text-gray-900">Today&apos;s Queue</h1>
+          <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">Today&apos;s Queue</h1>
         </div>
-        <div className="flex gap-2">
-          <Link to="/reception/patients/new" className="inline-flex items-center gap-2 px-3.5 py-2 bg-white border border-gray-200 rounded-md text-sm font-medium hover:border-teal-600" data-testid="new-patient-btn">
+        <div className="flex flex-wrap gap-2">
+          <Link to="/reception/patients/new" className="inline-flex items-center gap-2 px-3.5 py-2.5 bg-white border border-gray-200 rounded-md text-sm font-medium hover:border-teal-600 min-h-[44px]" data-testid="new-patient-btn">
             <UserPlus size={15} strokeWidth={1.5} /> New Patient
           </Link>
-          <Link to="/reception/new-visit" className="inline-flex items-center gap-2 px-3.5 py-2 bg-teal-700 hover:bg-teal-800 text-white rounded-md text-sm font-medium" data-testid="new-visit-btn">
+          <Link to="/reception/new-visit" className="inline-flex items-center gap-2 px-3.5 py-2.5 bg-teal-700 hover:bg-teal-800 text-white rounded-md text-sm font-medium min-h-[44px]" data-testid="new-visit-btn">
             <Plus size={15} strokeWidth={1.5} /> New Visit
           </Link>
         </div>
@@ -72,7 +72,7 @@ export default function ReceptionDashboard() {
         {loading ? (
           <div className="p-12 grid place-items-center text-gray-400"><Loader2 className="animate-spin" /></div>
         ) : (
-          <table className="w-full text-sm" data-testid="cases-table">
+          <div className="table-scroll"><table className="w-full text-sm" data-testid="cases-table">
             <thead>
               <tr className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500 text-left">
                 <th className="px-4 py-3 font-semibold">Case</th>
@@ -103,7 +103,7 @@ export default function ReceptionDashboard() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
     </div>

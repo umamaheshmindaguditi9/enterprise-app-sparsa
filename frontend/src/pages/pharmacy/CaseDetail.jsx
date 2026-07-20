@@ -58,12 +58,12 @@ export default function PharmacyCase() {
   };
 
   return (
-    <div className="p-8 max-w-6xl mx-auto" data-testid="pharmacy-case">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto" data-testid="pharmacy-case">
       <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 mb-3"><ArrowLeft size={14} /> Back</button>
       <div className="bg-white border border-gray-200 rounded-md p-6 mb-6 flex items-start justify-between">
         <div>
           <div className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1 tabular-nums">{c.case_uid}</div>
-          <h1 className="font-display text-3xl font-semibold tracking-tight text-gray-900">{c.patient?.first_name} {c.patient?.last_name}</h1>
+          <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">{c.patient?.first_name} {c.patient?.last_name}</h1>
           <div className="text-sm text-gray-600 mt-1 tabular-nums">{c.patient?.patient_uid} · {c.patient?.gender} · {c.patient?.age}y</div>
         </div>
         <StatusBadge status={c.status} />
@@ -98,7 +98,7 @@ export default function PharmacyCase() {
       {/* Dispense */}
       <div className="bg-white border border-gray-200 rounded-md p-6">
         <h2 className="font-display text-lg font-semibold text-gray-900 mb-4">Dispense</h2>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Status">
             <select className="input" value={dispense.status} onChange={(e) => setDispense({ ...dispense, status: e.target.value })} data-testid="dispense-status">
               <option value="FULL">Fully dispensed</option>

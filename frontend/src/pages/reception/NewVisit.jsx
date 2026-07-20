@@ -52,12 +52,12 @@ export default function NewVisit() {
   };
 
   return (
-    <div className="p-8 max-w-2xl mx-auto" data-testid="new-visit-page">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-2xl mx-auto" data-testid="new-visit-page">
       <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 mb-4">
         <ArrowLeft size={14} /> Back
       </button>
       <div className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1">Reception</div>
-      <h1 className="font-display text-3xl font-semibold tracking-tight text-gray-900 mb-8">New visit</h1>
+      <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900 mb-8">New visit</h1>
 
       <form onSubmit={submit} className="bg-white border border-gray-200 rounded-md p-6 space-y-6" data-testid="new-visit-form">
         {/* Patient */}

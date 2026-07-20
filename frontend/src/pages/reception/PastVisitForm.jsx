@@ -134,12 +134,12 @@ export default function PastVisitForm() {
   if (!patient) return <div className="p-8 grid place-items-center text-gray-400"><Loader2 className="animate-spin" /></div>;
 
   return (
-    <div className="p-8 max-w-4xl mx-auto" data-testid="past-visit-page">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto" data-testid="past-visit-page">
       <Link to={`/reception/patients/${id}/timeline`} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 mb-3">
         <ArrowLeft size={14} /> Back to timeline
       </Link>
       <div className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1 tabular-nums">{patient.patient_uid}</div>
-      <h1 className="font-display text-3xl font-semibold tracking-tight text-gray-900 mb-1">
+      <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900 mb-1">
         Add past visit · {patient.first_name} {patient.last_name}
       </h1>
       <p className="text-sm text-gray-500 mb-6">For migrating historical records from notebooks or Google Docs.</p>
@@ -177,7 +177,7 @@ export default function PastVisitForm() {
       </section>
 
       <form onSubmit={submit} className="bg-white border border-gray-200 rounded-md p-6 space-y-5" data-testid="past-visit-form">
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Field label="Visit date" required>
             <input type="date" className="input" value={form.visit_date} onChange={(e) => setForm({ ...form, visit_date: e.target.value })} required data-testid="visit-date" />
           </Field>
@@ -193,7 +193,7 @@ export default function PastVisitForm() {
           <textarea rows={2} className="input" value={form.complaint_text} onChange={(e) => setForm({ ...form, complaint_text: e.target.value })} required data-testid="complaint-input" />
         </Field>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Diagnosis"><textarea rows={2} className="input" value={form.diagnosis_summary} onChange={(e) => setForm({ ...form, diagnosis_summary: e.target.value })} data-testid="diagnosis-input" /></Field>
           <Field label="Allergies"><textarea rows={2} className="input" value={form.sensitivity_allergies} onChange={(e) => setForm({ ...form, sensitivity_allergies: e.target.value })} /></Field>
           <Field label="Suggestions"><textarea rows={2} className="input" value={form.suggestions} onChange={(e) => setForm({ ...form, suggestions: e.target.value })} /></Field>
@@ -223,7 +223,7 @@ export default function PastVisitForm() {
         {/* Payment */}
         <div className="border-t border-gray-100 pt-5">
           <label className="text-xs uppercase tracking-wider font-semibold text-gray-500 block mb-2">Payment (optional)</label>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <Field label="Consultation (₹)"><input type="number" className="input tabular-nums" value={form.consultation_amount} onChange={(e) => setForm({ ...form, consultation_amount: e.target.value })} /></Field>
             <Field label="Medicines taken">
               <select className="input" value={form.medicines_taken ? "Y" : "N"} onChange={(e) => setForm({ ...form, medicines_taken: e.target.value === "Y" })}>

@@ -99,17 +99,17 @@ export default function NewPatient() {
   };
 
   return (
-    <div className="p-8 max-w-4xl mx-auto" data-testid="new-patient-fir-page">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto" data-testid="new-patient-fir-page">
       <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 mb-4">
         <ArrowLeft size={14} /> Back
       </button>
       <div className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1">Reception · First Information Report</div>
-      <h1 className="font-display text-3xl font-semibold tracking-tight text-gray-900 mb-8">New patient registration</h1>
+      <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900 mb-8">New patient registration</h1>
 
       <form onSubmit={submit} className="space-y-6" data-testid="fir-form">
         {/* Patient Information */}
         <Section title="Patient Information">
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Field label="First name" required>
               <input className="input" value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} required data-testid="first-name-input" />
             </Field>
@@ -121,7 +121,7 @@ export default function NewPatient() {
             </Field>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Field label="Gender" required>
               <select className="input" value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })} data-testid="gender-select">
                 <option value="MALE">Male</option>
@@ -154,7 +154,7 @@ export default function NewPatient() {
             <textarea rows={2} className="input" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} data-testid="address-input" />
           </Field>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Field label="Height (cm)" hint="in centimeters, e.g. 170">
               <input type="number" step="1" min="20" max="300" placeholder="170" className="input tabular-nums" value={form.height_cm} onChange={(e) => setForm({ ...form, height_cm: e.target.value })} data-testid="height-input" />
             </Field>
@@ -176,7 +176,7 @@ export default function NewPatient() {
 
         {/* Patient Source */}
         <Section title="How did you know about us?" subtitle="Select all that apply">
-          <div className="grid grid-cols-3 gap-2" data-testid="sources-grid">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2" data-testid="sources-grid">
             {SOURCES.map((s) => (
               <label key={s.value} className={`flex items-center gap-2 px-3 py-2 border rounded-md text-sm cursor-pointer transition ${form.sources.includes(s.value) ? "bg-teal-50 border-teal-300 text-teal-900" : "border-gray-200 hover:bg-gray-50"}`}>
                 <input

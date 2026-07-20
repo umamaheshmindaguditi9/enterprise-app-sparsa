@@ -73,13 +73,13 @@ export default function PatientTimeline() {
   const p = data.patient;
 
   return (
-    <div className="p-8 max-w-4xl mx-auto" data-testid="patient-timeline">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto" data-testid="patient-timeline">
       <Link to={`${basePath}/patients`} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 mb-3">
         <ArrowLeft size={14} /> Back to patients
       </Link>
       <div className="bg-white border border-gray-200 rounded-md p-6 mb-6">
         <div className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1 tabular-nums">{p.patient_uid}</div>
-        <h1 className="font-display text-3xl font-semibold tracking-tight text-gray-900">{p.first_name} {p.last_name}</h1>
+        <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">{p.first_name} {p.last_name}</h1>
         <div className="text-sm text-gray-600 mt-1 tabular-nums">
           {p.gender} · {p.age}y · {p.phone} · {p.preferred_language === "TE" ? "Telugu" : "English"}
         </div>
@@ -175,7 +175,7 @@ export default function PatientTimeline() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                 {t.clinical_notes ? (
                   <Section icon={FileText} title="Notes">
                     {t.clinical_notes.diagnosis_summary && <p className="text-gray-700 line-clamp-3">{t.clinical_notes.diagnosis_summary}</p>}

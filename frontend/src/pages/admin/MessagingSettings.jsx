@@ -57,17 +57,17 @@ export default function MessagingSettings() {
   if (!data) return <div className="p-8 grid place-items-center text-gray-400"><Loader2 className="animate-spin" /></div>;
 
   return (
-    <div className="p-8 max-w-3xl mx-auto" data-testid="messaging-settings">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto" data-testid="messaging-settings">
       <div className="mb-8">
         <div className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1">Admin · Integrations</div>
-        <h1 className="font-display text-3xl font-semibold tracking-tight text-gray-900">Messaging settings</h1>
+        <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">Messaging settings</h1>
         <p className="text-sm text-gray-600 mt-2">
           Set your <span className="font-medium">Twilio SMS</span> and <span className="font-medium">WhatsApp Cloud API</span> keys to enable real follow-up reminders.
           Until configured, reminders are stored and visible inside the app but no message is sent.
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         {FIELDS.map(({ group, label }) => {
           const enabled = data.status[group];
           const source = data.source[group];

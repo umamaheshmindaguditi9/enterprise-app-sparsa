@@ -98,20 +98,43 @@ code, pre, .font-mono, .tabular-nums {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.5rem 0.875rem;
+  padding: 0.625rem 0.875rem;
+  min-height: 44px;
   border-radius: 0.375rem;
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
   font-weight: 500;
   color: #4B5563;
   border-left: 3px solid transparent;
   transition: all 150ms ease-in-out;
+  touch-action: manipulation;
 }
 .nav-link:hover { background-color: #F3F4F6; color: #111827; }
+.nav-link:active { background-color: #E5E7EB; }
 .nav-link.active {
   background-color: #CCFBF1;
   color: #0F766E;
   border-left-color: #0F766E;
 }
+
+/* Touch-friendly form controls on mobile */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px; /* prevents iOS zoom on focus */
+  }
+  input:not([type="checkbox"]):not([type="radio"]),
+  select {
+    min-height: 44px;
+  }
+  button, a.btn, [role="button"] {
+    touch-action: manipulation;
+  }
+}
+
+/* Horizontal scroll wrapper for wide tables on small screens */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.table-scroll table { min-width: 640px; }
 
 /* print */
 @media print {

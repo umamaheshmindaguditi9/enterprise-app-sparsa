@@ -45,10 +45,10 @@ export default function PatientsList() {
   };
 
   return (
-    <div className="p-8 max-w-6xl mx-auto" data-testid="patients-list">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto" data-testid="patients-list">
       <div className="mb-6">
         <div className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1">Reception</div>
-        <h1 className="font-display text-3xl font-semibold tracking-tight text-gray-900">Patients</h1>
+        <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">Patients</h1>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-md">
@@ -69,7 +69,7 @@ export default function PatientsList() {
         {loading ? (
           <div className="p-12 grid place-items-center text-gray-400"><Loader2 className="animate-spin" /></div>
         ) : (
-          <table className="w-full text-sm">
+          <div className="table-scroll"><table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500 text-left">
                 <th className="px-4 py-3 font-semibold">Patient ID</th>
@@ -109,7 +109,7 @@ export default function PatientsList() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
 
@@ -120,7 +120,7 @@ export default function PatientsList() {
               <h3 className="font-display font-semibold text-lg text-gray-900">Edit patient</h3>
               <button onClick={() => setEditing(null)} className="text-gray-400 hover:text-gray-700"><X size={16} /></button>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="First name"><input className="input" value={editing.first_name} onChange={(e) => setEditing({ ...editing, first_name: e.target.value })} /></Field>
               <Field label="Last name"><input className="input" value={editing.last_name} onChange={(e) => setEditing({ ...editing, last_name: e.target.value })} /></Field>
               <Field label="Gender">

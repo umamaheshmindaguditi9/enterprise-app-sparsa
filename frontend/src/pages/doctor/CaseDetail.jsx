@@ -46,7 +46,7 @@ export default function CaseDetail() {
   };
 
   return (
-    <div className="p-8 max-w-6xl mx-auto" data-testid="doctor-case-detail">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto" data-testid="doctor-case-detail">
       <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 mb-3">
         <ArrowLeft size={14} /> Back to queue
       </button>
@@ -55,7 +55,7 @@ export default function CaseDetail() {
         <div className="flex items-start justify-between gap-6">
           <div>
             <div className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1 tabular-nums">{c.case_uid}</div>
-            <h1 className="font-display text-3xl font-semibold tracking-tight text-gray-900">
+            <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">
               {c.patient?.first_name} {c.patient?.last_name}
             </h1>
             <div className="text-sm text-gray-600 mt-1 tabular-nums">
@@ -314,7 +314,7 @@ function AiTab({ caseId }) {
   ];
 
   return (
-    <div className="grid grid-cols-3 gap-4" data-testid="ai-tab">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4" data-testid="ai-tab">
       <div className="col-span-1 space-y-3">
         {actions.map((a) => (
           <button

@@ -78,12 +78,12 @@ export default function BillingDetail() {
   };
 
   return (
-    <div className="p-8 max-w-5xl mx-auto" data-testid="billing-detail">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto" data-testid="billing-detail">
       <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 mb-3"><ArrowLeft size={14} /> Back</button>
       <div className="bg-white border border-gray-200 rounded-md p-6 mb-6 flex items-start justify-between">
         <div>
           <div className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1 tabular-nums">{c.case_uid}</div>
-          <h1 className="font-display text-3xl font-semibold tracking-tight text-gray-900">{c.patient?.first_name} {c.patient?.last_name}</h1>
+          <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">{c.patient?.first_name} {c.patient?.last_name}</h1>
           <div className="text-sm text-gray-600 mt-1 tabular-nums">{c.patient?.patient_uid} · {c.patient?.phone} · Doctor: {c.doctor?.display_name}</div>
         </div>
         <div className="flex flex-col items-end gap-2">
@@ -104,7 +104,7 @@ export default function BillingDetail() {
                 Receipt <span className="font-mono font-semibold tabular-nums">{data.payment.receipt_no}</span> · ₹{Number(data.payment.amount_paid).toFixed(0)} via <span className="font-medium">{data.payment.payment_mode || "—"}</span>.
                 The case is now in the closed archive.
               </p>
-              <div className="grid grid-cols-3 gap-3 mt-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 text-xs">
                 <div className="bg-white border border-emerald-100 rounded p-2.5">
                   <div className="text-emerald-700 uppercase tracking-wider font-semibold text-[10px] mb-0.5">Consultation</div>
                   <div className="tabular-nums font-semibold text-gray-900">₹{Number(data.payment.consultation_amount).toFixed(2)}</div>
@@ -136,7 +136,7 @@ export default function BillingDetail() {
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
         <div className={`col-span-2 bg-white border border-gray-200 rounded-md p-6 ${isClosed ? "opacity-75" : ""}`}>
           <h2 className="font-display text-lg font-semibold text-gray-900 mb-4">
             {isClosed ? "Payment summary (closed)" : "Payment"}
@@ -166,7 +166,7 @@ export default function BillingDetail() {
               <button type="button" onClick={() => setForm((f) => ({ ...f, amount_paid: total }))} className="text-xs text-teal-700 hover:text-teal-800 mt-1">Pay total ₹{total}</button>
             </Field>
             <Field label="Payment mode">
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
                 {["CASH", "PHONEPE", "CARD", "OTHER"].map((m) => (
                   <button key={m} type="button" onClick={() => setForm({ ...form, payment_mode: m })} className={`px-3 py-2 rounded-md text-sm font-medium border ${form.payment_mode === m ? "bg-teal-700 text-white border-teal-700" : "bg-white border-gray-200 text-gray-700 hover:border-teal-600"}`} data-testid={`mode-${m}`}>
                     {m}

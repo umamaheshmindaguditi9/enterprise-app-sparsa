@@ -35,10 +35,10 @@ export default function FinancialSearch() {
   }, [run]);
 
   return (
-    <div className="p-8 max-w-5xl mx-auto" data-testid="financial-search-page">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto" data-testid="financial-search-page">
       <div className="mb-6">
         <div className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1">PRO · Billing</div>
-        <h1 className="font-display text-3xl font-semibold tracking-tight text-gray-900">Patient financial search</h1>
+        <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">Patient financial search</h1>
         <p className="text-sm text-gray-600 mt-2">Look up a patient by name, ID or phone number to see their complete billing & payment history.</p>
       </div>
 
@@ -77,14 +77,14 @@ export default function FinancialSearch() {
                   <span>{r.visits_count} visit{r.visits_count !== 1 ? "s" : ""}</span>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-2 text-right">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-right">
                 <Metric label="Billed" value={fINR(r.total_billed)} />
                 <Metric label="Paid" value={fINR(r.total_paid)} positive />
                 <Metric label="Outstanding" value={fINR(r.outstanding)} negative={r.outstanding > 0} />
               </div>
             </div>
             {r.visits.length > 0 ? (
-              <table className="w-full text-sm">
+              <div className="table-scroll"><table className="w-full text-sm">
                 <thead className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500">
                   <tr>
                     <th className="text-left px-5 py-2">Visit</th>
@@ -115,7 +115,7 @@ export default function FinancialSearch() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             ) : (
               <div className="p-5 text-sm text-gray-400">No visits recorded yet.</div>
             )}

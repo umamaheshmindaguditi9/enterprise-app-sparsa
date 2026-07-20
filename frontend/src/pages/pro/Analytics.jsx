@@ -32,10 +32,10 @@ export default function ProAnalytics() {
   const maxRev = Math.max(1, ...rm.trend_30d.map((d) => d.amount));
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8" data-testid="pro-analytics-page">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-8" data-testid="pro-analytics-page">
       <div>
         <div className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1">PRO · Business analytics</div>
-        <h1 className="font-display text-3xl font-semibold tracking-tight text-gray-900">Clinic performance — last 30 days</h1>
+        <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">Clinic performance — last 30 days</h1>
       </div>
 
       {/* Top KPIs */}
@@ -70,10 +70,10 @@ export default function ProAnalytics() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
         {/* Patient demographics */}
         <Card title="Patient demographics">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <div className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold mb-2">By gender</div>
               <BarList data={Object.entries(pm.by_gender).map(([k, v]) => ({ label: k, value: v }))} />

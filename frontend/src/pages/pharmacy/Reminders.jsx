@@ -37,9 +37,9 @@ export default function PharmacyReminders() {
   };
 
   return (
-    <div className="p-8 max-w-4xl mx-auto" data-testid="pharmacy-reminders">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto" data-testid="pharmacy-reminders">
       <div className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1">Pharmacy</div>
-      <h1 className="font-display text-3xl font-semibold tracking-tight text-gray-900 mb-1">Reminders</h1>
+      <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900 mb-1">Reminders</h1>
       <p className="text-sm text-gray-500 mb-6">Follow-ups doctors flagged for pharmacy attention. Mark complete when handled. Times in IST.</p>
 
       <div className="flex gap-1 bg-white border border-gray-200 rounded-md p-0.5 mb-4 w-fit">

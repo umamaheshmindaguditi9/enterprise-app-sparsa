@@ -33,10 +33,10 @@ export default function ProDashboard() {
   const maxRev = MAX_BAR_VALUE(stats.revenue_trend_7d);
 
   return (
-    <div className="p-8 max-w-7xl mx-auto" data-testid="pro-dashboard">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto" data-testid="pro-dashboard">
       <div className="mb-8">
         <div className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1">Billing · PRO</div>
-        <h1 className="font-display text-3xl font-semibold tracking-tight text-gray-900">Today at the clinic</h1>
+        <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">Today at the clinic</h1>
       </div>
 
       {/* KPI row */}
@@ -48,7 +48,7 @@ export default function ProDashboard() {
         <KPI icon={Users} label="Total patients" value={stats.total_patients} accent="indigo" />
       </div>
 
-      <div className="grid grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
         {/* Revenue trend */}
         <div className="col-span-2 bg-white border border-gray-200 rounded-md p-5">
           <div className="flex items-center gap-2 mb-4">
@@ -94,7 +94,7 @@ export default function ProDashboard() {
       </div>
 
       {/* Two columns: billing queue + follow-ups today */}
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
         <div className="col-span-2 bg-white border border-gray-200 rounded-md">
           <div className="px-4 py-3 border-b border-gray-200 flex justify-between items-center">
             <h2 className="font-display text-sm font-semibold text-gray-900">Billing queue</h2>
@@ -106,7 +106,7 @@ export default function ProDashboard() {
               <div className="text-sm text-gray-500">No pending bills.</div>
             </div>
           ) : (
-            <table className="w-full text-sm">
+            <div className="table-scroll"><table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500 text-left">
                   <th className="px-4 py-3 font-semibold">Case</th>
@@ -134,7 +134,7 @@ export default function ProDashboard() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
         </div>
 

@@ -29,10 +29,10 @@ export default function DoctorPatients() {
   }, [load]);
 
   return (
-    <div className="p-8 max-w-6xl mx-auto" data-testid="doctor-patients-page">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto" data-testid="doctor-patients-page">
       <div className="mb-6">
         <div className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1">{isOwner ? "Owner doctor · all patients" : "Doctor · my patients"}</div>
-        <h1 className="font-display text-3xl font-semibold tracking-tight text-gray-900">{isOwner ? "Patient search" : "My patients"}</h1>
+        <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">{isOwner ? "Patient search" : "My patients"}</h1>
         <p className="text-sm text-gray-600 mt-2">
           {isOwner
             ? "Search across every patient in the clinic by name, patient ID or phone."
@@ -55,7 +55,7 @@ export default function DoctorPatients() {
       {err && <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2 mb-3">{err}</div>}
 
       <div className="bg-white border border-gray-200 rounded-md overflow-hidden">
-        <table className="w-full text-sm">
+        <div className="table-scroll"><table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200 text-xs uppercase tracking-wider text-gray-500">
             <tr>
               <th className="text-left px-4 py-2.5">Patient</th>
@@ -88,7 +88,7 @@ export default function DoctorPatients() {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       </div>
     </div>
   );

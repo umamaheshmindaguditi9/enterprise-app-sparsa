@@ -33,23 +33,23 @@ export default function PharmacyDashboard() {
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto" data-testid="pharmacy-dashboard">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto" data-testid="pharmacy-dashboard">
       <div className="mb-8">
         <div className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1">Pharmacy</div>
-        <h1 className="font-display text-3xl font-semibold tracking-tight text-gray-900">Counter dashboard</h1>
+        <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">Counter dashboard</h1>
       </div>
 
       {err && <div className="mb-4 text-sm text-red-700">{err}</div>}
 
       {/* KPIs */}
-      <div className="grid grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <KPI icon={Pill} label="Pending dispense" value={stats?.pending_dispense_count ?? "—"} accent="amber" />
         <KPI icon={CheckCircle2} label="Dispensed today" value={stats?.dispensed_today_count ?? "—"} accent="emerald" />
         <KPI icon={IndianRupee} label="Medicine revenue today" value={`₹${Number(stats?.medicine_revenue_today || 0).toFixed(0)}`} accent="teal" />
         <KPI icon={BellRing} label="Active reminders" value={stats?.pharmacy_reminders_pending ?? "—"} accent="indigo" />
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
         {/* Dispensing queue */}
         <div className="col-span-2 bg-white border border-gray-200 rounded-md">
           <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
@@ -64,7 +64,7 @@ export default function PharmacyDashboard() {
               <div className="text-sm text-gray-500">No prescriptions waiting.</div>
             </div>
           ) : (
-            <table className="w-full text-sm">
+            <div className="table-scroll"><table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500 text-left">
                   <th className="px-4 py-3 font-semibold">Case</th>
@@ -92,7 +92,7 @@ export default function PharmacyDashboard() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
         </div>
 

@@ -27,10 +27,10 @@ export default function DoctorDashboard({ scope }) {
   );
 
   return (
-    <div className="p-8 max-w-7xl mx-auto" data-testid="doctor-dashboard">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto" data-testid="doctor-dashboard">
       <div className="mb-8">
         <div className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1">Doctor</div>
-        <h1 className="font-display text-3xl font-semibold tracking-tight text-gray-900">
+        <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">
           {scope === "all" ? "All Cases" : "My Queue"}
         </h1>
         <p className="text-sm text-gray-500 mt-1">
@@ -41,7 +41,7 @@ export default function DoctorDashboard({ scope }) {
       {err && <div className="mb-4 text-sm text-red-700">{err}</div>}
 
       {scope !== "all" && (
-        <div className="grid grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           <KPI label="In queue" value={cases.filter(c => c.status === "WAITING_FOR_DOCTOR").length} />
           <KPI label="In consultation" value={cases.filter(c => c.status === "IN_CONSULTATION").length} />
           <KPI label="Sent to pharmacy" value={cases.filter(c => c.status === "SENT_TO_PHARMACY").length} />
@@ -57,7 +57,7 @@ export default function DoctorDashboard({ scope }) {
         {loading ? (
           <div className="p-12 grid place-items-center text-gray-400"><Loader2 className="animate-spin" /></div>
         ) : (
-          <table className="w-full text-sm">
+          <div className="table-scroll"><table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500 text-left">
                 <th className="px-4 py-3 font-semibold">Case</th>
@@ -90,7 +90,7 @@ export default function DoctorDashboard({ scope }) {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
     </div>
@@ -101,7 +101,7 @@ function KPI({ label, value }) {
   return (
     <div className="bg-white border border-gray-200 rounded-md p-5">
       <div className="text-xs uppercase tracking-wider font-semibold text-gray-500">{label}</div>
-      <div className="font-display text-3xl font-semibold tracking-tight text-gray-900 mt-1 tabular-nums">{value}</div>
+      <div className="font-display text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900 mt-1 tabular-nums">{value}</div>
     </div>
   );
 }

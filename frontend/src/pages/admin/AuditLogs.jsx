@@ -16,10 +16,10 @@ export default function AdminAudit() {
   }, []);
 
   return (
-    <div className="p-8 max-w-6xl mx-auto" data-testid="admin-audit">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto" data-testid="admin-audit">
       <div className="mb-6">
         <div className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1">Admin</div>
-        <h1 className="font-display text-3xl font-semibold tracking-tight text-gray-900">Audit log</h1>
+        <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">Audit log</h1>
         <p className="text-sm text-gray-500 mt-1">Every action across the clinic, newest first.</p>
       </div>
       {err && <div className="text-sm text-red-700">{err}</div>}
@@ -27,7 +27,7 @@ export default function AdminAudit() {
         {loading ? (
           <div className="p-12 grid place-items-center text-gray-400"><Loader2 className="animate-spin" /></div>
         ) : (
-          <table className="w-full text-sm">
+          <div className="table-scroll"><table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500 text-left">
                 <th className="px-4 py-3 font-semibold">Time</th>
@@ -50,7 +50,7 @@ export default function AdminAudit() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
     </div>

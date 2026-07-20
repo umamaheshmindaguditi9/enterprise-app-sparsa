@@ -77,10 +77,10 @@ export default function AISettings() {
   const modelsForProvider = data.models[provider] || [];
 
   return (
-    <div className="p-8 max-w-3xl mx-auto" data-testid="ai-settings">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto" data-testid="ai-settings">
       <div className="mb-8">
         <div className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1">Admin · Integrations</div>
-        <h1 className="font-display text-3xl font-semibold tracking-tight text-gray-900">AI settings</h1>
+        <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">AI settings</h1>
         <p className="text-sm text-gray-600 mt-2">
           Add your own <span className="font-medium">Claude</span>, <span className="font-medium">GPT</span> or{" "}
           <span className="font-medium">Gemini</span> API key and pick the model used by all AI features
@@ -90,7 +90,7 @@ export default function AISettings() {
       </div>
 
       {/* Status cards */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <div className="bg-white border border-gray-200 rounded-md p-4 flex items-center justify-between" data-testid="status-active-model">
           <div>
             <div className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Active model</div>
@@ -120,7 +120,7 @@ export default function AISettings() {
       {/* Provider + model selection */}
       <div className="bg-white border border-gray-200 rounded-md p-5 mb-6" data-testid="group-model-selection">
         <div className="font-display font-semibold text-sm text-gray-900 mb-4">Provider &amp; model</div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1">AI provider</label>
             <select
