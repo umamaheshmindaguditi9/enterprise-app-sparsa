@@ -30,51 +30,43 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex">
-      {/* Left: hero image with overlay */}
-      <div
-        className="hidden lg:flex flex-1 bg-cover bg-center relative"
-        style={{ backgroundImage: "url('https://images.pexels.com/photos/7789602/pexels-photo-7789602.jpeg')" }}
-        data-testid="login-hero"
-      >
-        <div className="absolute inset-0 bg-white/70 backdrop-blur-sm" />
-        <div className="relative z-10 p-12 flex flex-col justify-end">
-          <div className="max-w-md">
-            <div className="bg-white/90 backdrop-blur-sm rounded-lg p-4 inline-flex items-center gap-3 mb-6 shadow-sm">
-              <Logo size={56} />
-              <div className="text-[11px] uppercase tracking-[0.18em] text-gray-600 font-semibold leading-tight">
-                Internal<br />Workspace
-              </div>
+    <div
+      className="min-h-screen w-full bg-cover bg-center relative flex items-center justify-center p-4 sm:p-8"
+      style={{
+        backgroundImage:
+          "url('https://customer-assets-4nw71qhi.emergentagent.net/job_simple-enterprise-ai/artifacts/ye1u44gy_pic.jpg.jpeg')",
+      }}
+      data-testid="login-hero"
+    >
+      {/* Elegant gradient overlay for readability */}
+      <div className="absolute inset-0 bg-gradient-to-br from-white/60 via-white/40 to-emerald-900/30" />
+      <div className="absolute inset-0 backdrop-blur-[2px]" />
+
+      {/* Centered glass card */}
+      <div className="relative z-10 w-full max-w-md">
+        <div className="bg-white/85 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/60 px-8 py-10 sm:px-10 sm:py-12">
+          {/* Brand */}
+          <div className="flex flex-col items-center text-center mb-8">
+            <Logo size={96} />
+            <div className="mt-4 text-[11px] uppercase tracking-[0.22em] text-emerald-800/80 font-semibold">
+              Internal Workspace
             </div>
-            <h1 className="font-display text-4xl font-semibold tracking-tight text-gray-900 leading-tight">
-              A calmer way to run your clinic.
-            </h1>
-            <p className="text-gray-700 mt-4 text-base leading-relaxed">
-              Internal workflow for Reception, Doctors, Pharmacy and Billing — built for the way Dr. Jyothi Vani and Dr. Hemanth see patients every day.
+            <h2 className="font-display text-2xl sm:text-3xl font-semibold text-gray-900 tracking-tight mt-4">
+              Welcome back
+            </h2>
+            <p className="text-sm text-gray-600 mt-1.5">
+              Sign in with your clinic credentials.
             </p>
           </div>
-        </div>
-      </div>
-
-      {/* Right: login form */}
-      <div className="flex-1 flex items-center justify-center p-8 bg-white">
-        <div className="w-full max-w-sm">
-          <div className="flex items-center gap-3 mb-10">
-            <Logo size={56} />
-            <div className="text-[10px] uppercase tracking-[0.18em] text-gray-500 font-semibold leading-tight">
-              Internal<br />Workspace
-            </div>
-          </div>
-
-          <h2 className="font-display text-2xl font-semibold text-gray-900 tracking-tight">Sign in</h2>
-          <p className="text-sm text-gray-500 mt-1 mb-8">Use your clinic credentials.</p>
 
           <form onSubmit={onSubmit} className="space-y-4" data-testid="login-form">
             <div>
-              <label className="text-xs uppercase tracking-wider font-semibold text-gray-500 block mb-1.5">Username</label>
+              <label className="text-xs uppercase tracking-wider font-semibold text-gray-600 block mb-1.5">
+                Username
+              </label>
               <input
                 type="text"
-                className="w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm focus-ring"
+                className="w-full px-3.5 py-2.5 bg-white/90 border border-gray-200 rounded-md text-sm focus-ring"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 autoFocus
@@ -83,10 +75,12 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <label className="text-xs uppercase tracking-wider font-semibold text-gray-500 block mb-1.5">Password</label>
+              <label className="text-xs uppercase tracking-wider font-semibold text-gray-600 block mb-1.5">
+                Password
+              </label>
               <input
                 type="password"
-                className="w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm focus-ring"
+                className="w-full px-3.5 py-2.5 bg-white/90 border border-gray-200 rounded-md text-sm focus-ring"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -95,7 +89,10 @@ export default function LoginPage() {
             </div>
 
             {err && (
-              <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2" data-testid="login-error">
+              <div
+                className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2"
+                data-testid="login-error"
+              >
                 {err}
               </div>
             )}
@@ -103,7 +100,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={busy}
-              className="w-full bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-sm font-medium py-2.5 rounded-md transition-colors flex items-center justify-center gap-2"
+              className="w-full bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-sm font-medium py-2.5 rounded-md transition-colors flex items-center justify-center gap-2 shadow-md"
               data-testid="login-submit-button"
             >
               {busy && <Loader2 size={14} className="animate-spin" />}
@@ -111,12 +108,14 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="mt-8 text-xs text-gray-500 border-t border-gray-100 pt-5">
-            <div className="text-gray-500 leading-relaxed">
-              Trouble signing in? Contact the clinic administrator to reset your credentials.
-            </div>
+          <div className="mt-8 text-xs text-gray-500 border-t border-gray-200/70 pt-5 text-center leading-relaxed">
+            Trouble signing in? Contact the clinic administrator to reset your credentials.
           </div>
         </div>
+
+        <p className="text-center text-[11px] text-white/90 mt-5 tracking-wide drop-shadow">
+          © Sparsa Homeoclinic — Internal Workspace
+        </p>
       </div>
     </div>
   );
