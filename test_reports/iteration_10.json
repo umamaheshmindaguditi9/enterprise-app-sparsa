@@ -1,0 +1,25 @@
+{
+  "summary": "Backend-only testing of new AI decision_support endpoint. Created pytest suite (14 tests). All pass on retest: owner doctor jyothi gets rich Markdown advisory with remedies/tinctures/disclaimer (>500 chars), DOCTOR hemanth can invoke on own cases but gets 403/404 on others, invalid action returns 400 with 'Invalid action', PRO/RECEPTION/PHARMACY/ADMIN roles get 403, existing summarize/advice/instructions actions still work, audit log entry AI_USED for Case with action=decision_support is created and retrievable via /api/admin/audit-logs?action=AI_USED, and regression on GET /api/cases and GET /api/cases/{id} still returns 200.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_ai_decision_support.py",
+    "/app/test_reports/pytest/iteration10_decision_support.xml",
+    "/app/test_reports/pytest/iteration10_retest.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "ai.py handles fallback to Emergent key cleanly when own key fails — good.",
+    "_build_clinical_dossier caps text lengths per section, keeping context manageable — good.",
+    "Note: GET /api/cases/{id} returns wrapped payload {case, clinical_notes, latest_prescription, payment, attachments}. Existing behavior, unchanged; documented in test."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_ai_decision_support.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "not tested (backend-only)"},
+  "test_credentials": "admin1, jyothi, hemanth, reception1, pharmacy1, pro1 — all with Password@123",
+  "seed_data_creation": "None — used existing seeded cases (57 CASE-000xxx).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "New endpoint POST /api/cases/{case_id}/ai/decision_support fully verified. Audit logs are queryable via /api/admin/audit-logs?action=AI_USED&limit=N and returned under key `audit_logs`. Response for GET /api/cases/{id} is wrapped (top-level key `case`). AI calls take 15-40s; tests use TIMEOUT=90s. Full suite completes in ~2.5 min."
+}

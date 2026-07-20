@@ -2,16 +2,27 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api, fmtErr } from "@/lib/api";
 import StatusBadge from "@/components/StatusBadge";
-import { ArrowLeft, Loader2, Sparkles, Save, ArrowRight, Plus, Trash2, X } from "lucide-react";
+import {
+  ArrowLeft, Loader2, Sparkles, Save, ArrowRight, Plus, Trash2,
+  Stethoscope, Pill, Paperclip, CalendarClock, Brain,
+} from "lucide-react";
 import AttachmentsTab from "@/components/AttachmentsTab";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
-const TABS = ["Notes", "Prescription", "Attachments", "Follow-up", "AI Assist"];
+const TABS = [
+  { key: "notes",       label: "Notes",        icon: Stethoscope },
+  { key: "rx",          label: "Prescription", icon: Pill },
+  { key: "attachments", label: "Attachments",  icon: Paperclip },
+  { key: "followup",    label: "Follow-up",    icon: CalendarClock },
+  { key: "ai",          label: "AI Assist",    icon: Brain },
+];
 
 export default function CaseDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
-  const [tab, setTab] = useState("Notes");
+  const [tab, setTab] = useState("notes");
   const [err, setErr] = useState("");
   const [bypassOpen, setBypassOpen] = useState(false);
   const [bypassReason, setBypassReason] = useState("");
@@ -47,39 +58,46 @@ export default function CaseDetail() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto" data-testid="doctor-case-detail">
-      <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 mb-3">
+      <button
+        onClick={() => navigate(-1)}
+        className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 mb-3 min-h-[36px]"
+        data-testid="back-to-queue-btn"
+      >
         <ArrowLeft size={14} /> Back to queue
       </button>
 
-      <div className="bg-white border border-gray-200 rounded-md p-6 mb-6">
-        <div className="flex items-start justify-between gap-6">
-          <div>
+      {/* Header — stacked on mobile, side-by-side on desktop */}
+      <div className="bg-white border border-gray-200 rounded-md p-4 sm:p-6 mb-4 sm:mb-6">
+        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+          <div className="min-w-0">
             <div className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1 tabular-nums">{c.case_uid}</div>
-            <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">
+            <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900 break-words">
               {c.patient?.first_name} {c.patient?.last_name}
             </h1>
             <div className="text-sm text-gray-600 mt-1 tabular-nums">
               {c.patient?.patient_uid} · {c.patient?.gender} · {c.patient?.age}y · {c.patient?.phone}
             </div>
-            <div className="text-sm text-gray-700 mt-3 max-w-xl">
+            <div className="text-sm text-gray-700 mt-3">
               <span className="text-xs uppercase tracking-wider font-semibold text-gray-500 mr-2">Complaint:</span>
               {c.complaint_text}
             </div>
           </div>
-          <div className="flex flex-col items-end gap-3">
-            <StatusBadge status={c.status} />
-            <div className="text-xs text-gray-500">Doctor: <span className="font-medium text-gray-900">{c.doctor?.display_name}</span></div>
-            <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row lg:flex-col items-start lg:items-end gap-3 sm:gap-4 lg:gap-3 shrink-0">
+            <div className="flex items-center gap-3">
+              <StatusBadge status={c.status} />
+              <div className="text-xs text-gray-500">Doctor: <span className="font-medium text-gray-900">{c.doctor?.display_name}</span></div>
+            </div>
+            <div className="flex flex-wrap gap-2 w-full sm:w-auto">
               {c.status === "WAITING_FOR_DOCTOR" && (
-                <button onClick={startConsult} className="px-3 py-1.5 bg-teal-700 hover:bg-teal-800 text-white rounded-md text-xs font-medium" data-testid="start-consult-btn">Start consultation</button>
+                <button onClick={startConsult} className="px-3 py-2 bg-teal-700 hover:bg-teal-800 text-white rounded-md text-xs sm:text-sm font-medium min-h-[40px]" data-testid="start-consult-btn">Start consultation</button>
               )}
               {(c.status === "IN_CONSULTATION" || c.status === "WAITING_FOR_DOCTOR") && (
                 <>
-                  <button onClick={sendToPro} className="inline-flex items-center gap-1 px-3 py-1.5 bg-teal-700 hover:bg-teal-800 text-white rounded-md text-xs font-medium" data-testid="send-pro-btn">
-                    Complete consultation · Send to PRO <ArrowRight size={12} />
+                  <button onClick={sendToPro} className="inline-flex items-center gap-1 px-3 py-2 bg-teal-700 hover:bg-teal-800 text-white rounded-md text-xs sm:text-sm font-medium min-h-[40px]" data-testid="send-pro-btn">
+                    Send to PRO <ArrowRight size={12} />
                   </button>
-                  <button onClick={() => setBypassOpen(true)} className="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-indigo-300 text-indigo-700 hover:bg-indigo-50 rounded-md text-xs font-medium" title="Skip PRO — for known patients / quick refills" data-testid="send-pharmacy-bypass-btn">
-                    Send direct to Pharmacy
+                  <button onClick={() => setBypassOpen(true)} className="inline-flex items-center gap-1 px-3 py-2 bg-white border border-indigo-300 text-indigo-700 hover:bg-indigo-50 rounded-md text-xs sm:text-sm font-medium min-h-[40px]" title="Skip PRO — for known patients / quick refills" data-testid="send-pharmacy-bypass-btn">
+                    Direct to Pharmacy
                   </button>
                 </>
               )}
@@ -88,28 +106,35 @@ export default function CaseDetail() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 border-b border-gray-200 mb-6">
-        {TABS.map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${tab === t ? "border-teal-700 text-teal-700" : "border-transparent text-gray-500 hover:text-gray-900"}`}
-            data-testid={`tab-${t.toLowerCase().replace(/\s+/g, "-")}`}
-          >
-            {t}
-          </button>
-        ))}
+      {/* Tabs — horizontally scrollable strip with icons */}
+      <div className="border-b border-gray-200 mb-4 sm:mb-6 -mx-4 sm:mx-0 px-4 sm:px-0 overflow-x-auto no-scrollbar">
+        <div className="flex gap-1 min-w-max">
+          {TABS.map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              className={`inline-flex items-center gap-1.5 px-3 sm:px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap min-h-[44px] ${
+                tab === key
+                  ? "border-teal-700 text-teal-700"
+                  : "border-transparent text-gray-500 hover:text-gray-900"
+              }`}
+              data-testid={`tab-${key}`}
+            >
+              <Icon size={15} strokeWidth={1.75} />
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {tab === "Notes" && <NotesTab caseId={c.id} initial={data.clinical_notes} onSaved={reload} />}
-      {tab === "Prescription" && <PrescriptionTab caseId={c.id} latest={data.latest_prescription} onSaved={reload} />}
-      {tab === "Attachments" && <AttachmentsTab caseId={c.id} />}
-      {tab === "Follow-up" && <FollowupTab caseData={c} onSaved={reload} />}
-      {tab === "AI Assist" && <AiTab caseId={c.id} />}
+      {tab === "notes"       && <NotesTab caseId={c.id} initial={data.clinical_notes} onSaved={reload} />}
+      {tab === "rx"          && <PrescriptionTab caseId={c.id} latest={data.latest_prescription} onSaved={reload} />}
+      {tab === "attachments" && <AttachmentsTab caseId={c.id} />}
+      {tab === "followup"    && <FollowupTab caseData={c} onSaved={reload} />}
+      {tab === "ai"          && <AiTab caseId={c.id} />}
 
       {bypassOpen && (
-        <div className="fixed inset-0 bg-black/40 grid place-items-center z-50" onClick={() => setBypassOpen(false)} data-testid="bypass-modal">
+        <div className="fixed inset-0 bg-black/40 grid place-items-center z-50 p-4" onClick={() => setBypassOpen(false)} data-testid="bypass-modal">
           <div className="bg-white rounded-md shadow-xl border border-gray-200 p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
             <h2 className="font-display text-lg font-semibold text-gray-900 mb-1">Send directly to Pharmacy?</h2>
             <p className="text-sm text-gray-600 mb-4">This skips PRO review (billing). Use only for quick refills or established patients. A short reason is required for the audit log.</p>
@@ -120,13 +145,13 @@ export default function CaseDetail() {
               value={bypassReason}
               onChange={(e) => setBypassReason(e.target.value)}
               placeholder="e.g. Refill — known patient, no consult fee"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-700/20"
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-700/20"
               data-testid="bypass-reason-input"
             />
             {bypassErr && <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded mt-3 px-3 py-2">{bypassErr}</div>}
-            <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => { setBypassOpen(false); setBypassReason(""); setBypassErr(""); }} className="px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded">Cancel</button>
-              <button onClick={submitBypass} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-sm font-medium" data-testid="bypass-confirm-btn">Send to Pharmacy</button>
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 mt-5">
+              <button onClick={() => { setBypassOpen(false); setBypassReason(""); setBypassErr(""); }} className="px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded min-h-[40px]">Cancel</button>
+              <button onClick={submitBypass} className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-sm font-medium min-h-[40px]" data-testid="bypass-confirm-btn">Send to Pharmacy</button>
             </div>
           </div>
         </div>
@@ -148,7 +173,7 @@ function NotesTab({ caseId, initial, onSaved }) {
   };
 
   return (
-    <div className="bg-white border border-gray-200 rounded-md p-6 space-y-4" data-testid="notes-tab">
+    <div className="bg-white border border-gray-200 rounded-md p-4 sm:p-6 space-y-4" data-testid="notes-tab">
       <Field label="Diagnosis / Assessment Summary">
         <textarea rows={3} className="input" value={form.diagnosis_summary || ""} onChange={(e) => setForm({ ...form, diagnosis_summary: e.target.value })} data-testid="diagnosis-input" />
       </Field>
@@ -164,14 +189,14 @@ function NotesTab({ caseId, initial, onSaved }) {
       <Field label="Additional information">
         <textarea rows={2} className="input" value={form.additional_info || ""} onChange={(e) => setForm({ ...form, additional_info: e.target.value })} />
       </Field>
-      <div className="flex items-center gap-3 pt-2">
-        <button onClick={save} disabled={busy} className="inline-flex items-center gap-2 px-4 py-2 bg-teal-700 hover:bg-teal-800 text-white rounded-md text-sm font-medium disabled:opacity-60" data-testid="save-notes-btn">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-2">
+        <button onClick={save} disabled={busy} className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-teal-700 hover:bg-teal-800 text-white rounded-md text-sm font-medium disabled:opacity-60 min-h-[44px]" data-testid="save-notes-btn">
           {busy ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
           Save notes
         </button>
         {msg && <span className="text-sm text-gray-500">{msg}</span>}
       </div>
-      <style>{`.input { width:100%; padding:0.5rem 0.75rem; border:1px solid #e5e7eb; border-radius:0.375rem; font-size:0.875rem; outline:none; }
+      <style>{`.input { width:100%; padding:0.625rem 0.75rem; border:1px solid #e5e7eb; border-radius:0.375rem; font-size:0.9375rem; outline:none; }
       .input:focus { border-color:#0F766E; box-shadow: 0 0 0 3px rgba(15,118,110,.18); }`}</style>
     </div>
   );
@@ -213,36 +238,40 @@ function PrescriptionTab({ caseId, latest, onSaved }) {
   };
 
   return (
-    <div className="bg-white border border-gray-200 rounded-md p-6 space-y-5" data-testid="prescription-tab">
+    <div className="bg-white border border-gray-200 rounded-md p-4 sm:p-6 space-y-5" data-testid="prescription-tab">
       {latest && <div className="text-xs text-gray-500">Current version: <span className="tabular-nums font-medium text-gray-700">v{latest.version_no}</span></div>}
       <div className="space-y-3">
         {items.map((it, i) => (
-          <div key={it._key} className="grid grid-cols-12 gap-2 items-start border border-gray-200 rounded-md p-3" data-testid={`rx-item-${i}`}>
-            <input className="input col-span-3" placeholder="Medicine" value={it.medicine_name} onChange={(e) => update(i, "medicine_name", e.target.value)} />
-            <input className="input col-span-2" placeholder="Potency (e.g. 30C)" value={it.potency} onChange={(e) => update(i, "potency", e.target.value)} />
-            <input className="input col-span-2" placeholder="Dosage" value={it.dosage} onChange={(e) => update(i, "dosage", e.target.value)} />
-            <input className="input col-span-2" placeholder="Frequency" value={it.frequency} onChange={(e) => update(i, "frequency", e.target.value)} />
-            <input className="input col-span-2 tabular-nums" type="number" placeholder="Days" value={it.duration_days} onChange={(e) => update(i, "duration_days", e.target.value)} />
-            <button onClick={() => setItems(items.filter((_, j) => j !== i))} className="col-span-1 text-gray-400 hover:text-red-600 py-2 grid place-items-center">
+          <div key={it._key} className="border border-gray-200 rounded-md p-3 space-y-2 sm:space-y-0 sm:grid sm:grid-cols-12 sm:gap-2 sm:items-start" data-testid={`rx-item-${i}`}>
+            <input className="input sm:col-span-3" placeholder="Medicine" value={it.medicine_name} onChange={(e) => update(i, "medicine_name", e.target.value)} />
+            <input className="input sm:col-span-2" placeholder="Potency (e.g. 30C)" value={it.potency} onChange={(e) => update(i, "potency", e.target.value)} />
+            <input className="input sm:col-span-2" placeholder="Dosage" value={it.dosage} onChange={(e) => update(i, "dosage", e.target.value)} />
+            <input className="input sm:col-span-2" placeholder="Frequency" value={it.frequency} onChange={(e) => update(i, "frequency", e.target.value)} />
+            <input className="input sm:col-span-2 tabular-nums" type="number" placeholder="Days" value={it.duration_days} onChange={(e) => update(i, "duration_days", e.target.value)} />
+            <button
+              onClick={() => setItems(items.filter((_, j) => j !== i))}
+              className="sm:col-span-1 text-gray-400 hover:text-red-600 py-2 grid place-items-center min-h-[40px] w-full sm:w-auto border sm:border-0 border-gray-200 rounded"
+              aria-label="Remove medicine"
+            >
               <Trash2 size={14} />
             </button>
-            <textarea rows={1} className="input col-span-12 mt-1" placeholder="Instructions (optional)" value={it.instructions} onChange={(e) => update(i, "instructions", e.target.value)} />
+            <textarea rows={1} className="input sm:col-span-12" placeholder="Instructions (optional)" value={it.instructions} onChange={(e) => update(i, "instructions", e.target.value)} />
           </div>
         ))}
-        <button onClick={() => setItems([...items, withKey({ ...EMPTY_ITEM })])} className="inline-flex items-center gap-1 text-sm text-teal-700 hover:text-teal-800 font-medium" data-testid="add-rx-item-btn">
+        <button onClick={() => setItems([...items, withKey({ ...EMPTY_ITEM })])} className="inline-flex items-center gap-1 text-sm text-teal-700 hover:text-teal-800 font-medium min-h-[40px]" data-testid="add-rx-item-btn">
           <Plus size={14} /> Add medicine
         </button>
       </div>
       <Field label="Notes for patient (printable)">
         <textarea rows={3} className="input" value={notesForPatient} onChange={(e) => setNotesForPatient(e.target.value)} />
       </Field>
-      <div className="flex items-center gap-3 pt-1">
-        <button onClick={save} disabled={busy} className="inline-flex items-center gap-2 px-4 py-2 bg-teal-700 hover:bg-teal-800 text-white rounded-md text-sm font-medium disabled:opacity-60" data-testid="save-rx-btn">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-1">
+        <button onClick={save} disabled={busy} className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-teal-700 hover:bg-teal-800 text-white rounded-md text-sm font-medium disabled:opacity-60 min-h-[44px]" data-testid="save-rx-btn">
           {busy ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save prescription
         </button>
         {msg && <span className="text-sm text-gray-500">{msg}</span>}
       </div>
-      <style>{`.input { padding:0.5rem 0.625rem; border:1px solid #e5e7eb; border-radius:0.375rem; font-size:0.875rem; outline:none; width:100%; }
+      <style>{`.input { padding:0.625rem 0.75rem; border:1px solid #e5e7eb; border-radius:0.375rem; font-size:0.9375rem; outline:none; width:100%; }
       .input:focus { border-color:#0F766E; box-shadow: 0 0 0 3px rgba(15,118,110,.18); }`}</style>
     </div>
   );
@@ -272,22 +301,22 @@ function FollowupTab({ caseData, onSaved }) {
   };
 
   return (
-    <div className="bg-white border border-gray-200 rounded-md p-6 space-y-4 max-w-xl" data-testid="followup-tab">
+    <div className="bg-white border border-gray-200 rounded-md p-4 sm:p-6 space-y-4 max-w-xl" data-testid="followup-tab">
       <Field label="Next follow-up date">
         <input type="date" className="input" value={followupDate} onChange={(e) => setFollowupDate(e.target.value)} data-testid="followup-date" />
       </Field>
       <Field label="Note">
         <textarea rows={3} className="input" value={note} onChange={(e) => setNote(e.target.value)} />
       </Field>
-      <label className="flex items-center gap-2 text-sm text-gray-700">
-        <input type="checkbox" checked={notifyPharmacy} onChange={(e) => setNotifyPharmacy(e.target.checked)} data-testid="notify-pharmacy" />
+      <label className="flex items-center gap-2 text-sm text-gray-700 min-h-[40px]">
+        <input type="checkbox" className="w-4 h-4" checked={notifyPharmacy} onChange={(e) => setNotifyPharmacy(e.target.checked)} data-testid="notify-pharmacy" />
         Also notify pharmacy (will appear on their dashboard until completed)
       </label>
-      <button onClick={save} disabled={busy || !followupDate} className="inline-flex items-center gap-2 px-4 py-2 bg-teal-700 hover:bg-teal-800 disabled:opacity-50 text-white rounded-md text-sm font-medium" data-testid="save-followup-btn">
+      <button onClick={save} disabled={busy || !followupDate} className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-teal-700 hover:bg-teal-800 disabled:opacity-50 text-white rounded-md text-sm font-medium min-h-[44px]" data-testid="save-followup-btn">
         {busy ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save follow-up
       </button>
       {msg && <div className="text-sm text-gray-500">{msg}</div>}
-      <style>{`.input { width:100%; padding:0.5rem 0.75rem; border:1px solid #e5e7eb; border-radius:0.375rem; font-size:0.875rem; outline:none; }
+      <style>{`.input { width:100%; padding:0.625rem 0.75rem; border:1px solid #e5e7eb; border-radius:0.375rem; font-size:0.9375rem; outline:none; }
       .input:focus { border-color:#0F766E; box-shadow: 0 0 0 3px rgba(15,118,110,.18); }`}</style>
     </div>
   );
@@ -295,11 +324,13 @@ function FollowupTab({ caseData, onSaved }) {
 
 function AiTab({ caseId }) {
   const [result, setResult] = useState("");
+  const [resultKind, setResultKind] = useState("markdown"); // "markdown" | "plain"
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
 
   const run = async (action) => {
     setBusy(action); setErr(""); setResult("");
+    setResultKind(action === "decision_support" ? "markdown" : "plain");
     try {
       const { data } = await api.post(`/cases/${caseId}/ai/${action}`);
       setResult(data.result);
@@ -307,40 +338,124 @@ function AiTab({ caseId }) {
     finally { setBusy(""); }
   };
 
-  const actions = [
-    { key: "summarize", label: "Summarize complaint", desc: "Drafts an assessment summary from the patient's complaint." },
-    { key: "advice", label: "Draft patient advice", desc: "Patient-friendly follow-up advice (uses preferred language)." },
-    { key: "instructions", label: "Prescription instructions", desc: "Numbered medication instructions for the patient." },
+  const quickActions = [
+    { key: "summarize",    label: "Summarize complaint",    desc: "Structured assessment draft from complaint." },
+    { key: "advice",       label: "Draft patient advice",   desc: "Patient-friendly follow-up advice (uses preferred language)." },
+    { key: "instructions", label: "Prescription instructions", desc: "Numbered medication instructions." },
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4" data-testid="ai-tab">
-      <div className="col-span-1 space-y-3">
-        {actions.map((a) => (
-          <button
-            key={a.key}
-            onClick={() => run(a.key)}
-            disabled={!!busy}
-            className="w-full text-left bg-gradient-to-br from-teal-50 to-white border border-teal-100 rounded-md p-4 hover:border-teal-300 transition-colors disabled:opacity-60"
-            data-testid={`ai-${a.key}-btn`}
-          >
-            <div className="flex items-center gap-2 mb-1">
-              {busy === a.key ? <Loader2 size={14} className="animate-spin text-teal-700" /> : <Sparkles size={14} strokeWidth={1.5} className="text-teal-700" />}
-              <div className="font-semibold text-sm text-gray-900">{a.label}</div>
+    <div className="space-y-4" data-testid="ai-tab">
+      {/* Hero: Clinical Decision Support */}
+      <div className="rounded-lg border border-teal-200 bg-gradient-to-br from-teal-50 via-emerald-50 to-white p-4 sm:p-6" data-testid="ai-decision-support-card">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="min-w-0">
+            <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] font-semibold text-teal-700 mb-1.5">
+              <Sparkles size={13} /> Clinical Decision Support
             </div>
-            <div className="text-xs text-gray-500 leading-relaxed">{a.desc}</div>
+            <h3 className="font-display text-lg sm:text-xl font-semibold text-gray-900">
+              Analyze the full case with homeopathic expertise
+            </h3>
+            <p className="text-sm text-gray-600 mt-1.5 leading-relaxed max-w-2xl">
+              Reads the patient&apos;s complete profile — age, gender, past visits, allergies,
+              current complaint, prescriptions and attachments — then drafts a materia-medica-aware
+              advisory covering remedies, mother tinctures, German / biochemic considerations,
+              patient advice and follow-up. Advisory only — you approve everything.
+            </p>
+          </div>
+          <button
+            onClick={() => run("decision_support")}
+            disabled={!!busy}
+            className="shrink-0 inline-flex items-center justify-center gap-2 px-5 py-3 bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white rounded-md text-sm font-semibold min-h-[48px] shadow-sm w-full md:w-auto"
+            data-testid="ai-decision-support-btn"
+          >
+            {busy === "decision_support"
+              ? <><Loader2 size={16} className="animate-spin" /> Analyzing full case…</>
+              : <><Brain size={16} strokeWidth={1.75} /> AI Assist — Analyze Case</>}
           </button>
-        ))}
+        </div>
       </div>
-      <div className="col-span-2 bg-white border border-gray-200 rounded-md p-5 min-h-[300px]">
-        <div className="text-xs uppercase tracking-wider font-semibold text-gray-500 mb-3">AI draft</div>
-        {err && <div className="text-sm text-red-700">{err}</div>}
-        {!err && !result && !busy && <div className="text-sm text-gray-400">Pick an action on the left to generate a draft. Drafts are never auto-saved.</div>}
-        {busy && <div className="text-sm text-gray-500 inline-flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Thinking…</div>}
+
+      {/* Result panel */}
+      <div className="bg-white border border-gray-200 rounded-md p-4 sm:p-6 min-h-[240px]" data-testid="ai-result-panel">
+        <div className="flex items-center justify-between mb-3 gap-2">
+          <div className="text-xs uppercase tracking-wider font-semibold text-gray-500">AI advisory</div>
+          {result && (
+            <button
+              onClick={() => navigator.clipboard?.writeText(result)}
+              className="text-xs text-teal-700 hover:text-teal-800 font-medium min-h-[32px] px-2"
+              data-testid="ai-copy-btn"
+            >
+              Copy
+            </button>
+          )}
+        </div>
+        {err && <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">{err}</div>}
+        {!err && !result && !busy && (
+          <div className="text-sm text-gray-400">
+            Tap <span className="font-medium text-teal-700">AI Assist — Analyze Case</span> above for a full clinical
+            decision-support advisory, or use a quick action below.
+          </div>
+        )}
+        {busy && (
+          <div className="text-sm text-gray-500 inline-flex items-center gap-2">
+            <Loader2 size={14} className="animate-spin" /> Thinking… reading full clinical dossier
+          </div>
+        )}
+        {result && resultKind === "markdown" && (
+          <div className="ai-markdown text-[15px] leading-relaxed text-gray-800" data-testid="ai-result">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{result}</ReactMarkdown>
+          </div>
+        )}
+        {result && resultKind === "plain" && (
+          <div className="text-[15px] text-gray-800 whitespace-pre-wrap leading-relaxed" data-testid="ai-result">{result}</div>
+        )}
         {result && (
-          <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed" data-testid="ai-result">{result}</div>
+          <div className="mt-5 pt-4 border-t border-gray-100 text-xs text-gray-500 leading-relaxed flex items-start gap-2">
+            <span className="text-amber-600 shrink-0">⚠</span>
+            <span>
+              Advisory only. Final remedy selection, potency, dosage and duration remain the
+              treating doctor&apos;s responsibility. Do not share verbatim with the patient.
+            </span>
+          </div>
         )}
       </div>
+
+      {/* Quick actions */}
+      <div>
+        <div className="text-xs uppercase tracking-wider font-semibold text-gray-500 mb-2 mt-2">Quick actions</div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {quickActions.map((a) => (
+            <button
+              key={a.key}
+              onClick={() => run(a.key)}
+              disabled={!!busy}
+              className="text-left bg-white border border-gray-200 rounded-md p-4 hover:border-teal-400 hover:bg-teal-50/40 transition-colors disabled:opacity-60 min-h-[80px]"
+              data-testid={`ai-${a.key}-btn`}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                {busy === a.key ? <Loader2 size={14} className="animate-spin text-teal-700" /> : <Sparkles size={14} strokeWidth={1.5} className="text-teal-700" />}
+                <div className="font-semibold text-sm text-gray-900">{a.label}</div>
+              </div>
+              <div className="text-xs text-gray-500 leading-relaxed">{a.desc}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <style>{`
+        .ai-markdown h1, .ai-markdown h2 { font-family: 'IBM Plex Serif', Georgia, serif; letter-spacing: -0.01em; }
+        .ai-markdown h2 { font-size: 1.05rem; font-weight: 600; color: #0F766E; margin-top: 1.25rem; margin-bottom: .35rem; padding-bottom: .25rem; border-bottom: 1px solid #ccfbf1; }
+        .ai-markdown h3 { font-size: .95rem; font-weight: 600; color: #111827; margin-top: 1rem; margin-bottom: .25rem; }
+        .ai-markdown p  { margin: .5rem 0; }
+        .ai-markdown ul { list-style: disc; padding-left: 1.25rem; margin: .35rem 0 .75rem; }
+        .ai-markdown ol { list-style: decimal; padding-left: 1.4rem; margin: .35rem 0 .75rem; }
+        .ai-markdown li { margin: .15rem 0; }
+        .ai-markdown strong { color: #0F766E; font-weight: 600; }
+        .ai-markdown code { background: #f3f4f6; padding: .05rem .3rem; border-radius: 3px; font-size: .85em; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { scrollbar-width: none; }
+      `}</style>
     </div>
   );
 }

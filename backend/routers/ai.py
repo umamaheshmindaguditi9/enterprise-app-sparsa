@@ -47,7 +47,7 @@ async def ai_assist(
     action: str,
     user: dict = Depends(require_roles(ROLE_OWNER_DOCTOR, ROLE_DOCTOR)),
 ):
-    if action not in ("summarize", "advice", "instructions"):
+    if action not in ("summarize", "advice", "instructions", "decision_support"):
         raise HTTPException(status_code=400, detail="Invalid action")
     c = await load_case_for_user(case_id, user)
     patient = await db.patients.find_one({"id": c["patient_id"]}, {"_id": 0})
@@ -71,7 +71,7 @@ async def ai_assist(
             f"Medicines: {med_list}\n"
             f"Follow-up date: {c.get('next_followup_at') or 'Not set'}"
         )
-    else:  # instructions
+    elif action == "instructions":
         system = prompts.case_instructions(lang)
         lines = []
         for it in (latest_p or {}).get("items", []):
@@ -80,6 +80,9 @@ async def ai_assist(
                 f"{it.get('frequency', '')} for {it.get('duration_days') or '?'} days. {it.get('instructions', '')}"
             )
         user_text = "\n".join(lines) or "(no items)"
+    else:  # decision_support — full clinical dossier
+        system = prompts.case_decision_support()
+        user_text = await _build_clinical_dossier(c, patient, note, latest_p)
 
     try:
         result = await _call_llm(system, user_text, f"case-{action}")
@@ -91,6 +94,93 @@ async def ai_assist(
 
     await audit(user, "AI_USED", "Case", case_id, {"action": action})
     return {"action": action, "result": result}
+
+
+async def _build_clinical_dossier(current_case: dict, patient: dict, current_note: dict, current_rx: dict) -> str:
+    """Assemble a compact chronological clinical dossier for the decision-support model."""
+    p = patient or {}
+    bmi = p.get("bmi") or "—"
+    lines = [
+        "=== PATIENT PROFILE ===",
+        f"Name: {p.get('first_name', '')} {p.get('last_name', '')}  ·  UID: {p.get('patient_uid', '')}",
+        f"Age: {p.get('age', '?')} · Gender: {p.get('gender', '?')} · Marital: {p.get('marital_status') or '—'}",
+        f"Phone: {p.get('phone', '—')} · Language: {p.get('preferred_language') or 'EN'}",
+        f"Occupation: {p.get('occupation') or '—'} · Blood group: {p.get('blood_group') or '—'}",
+        f"Height: {p.get('height_cm') or '—'} cm · Weight: {p.get('weight_kg') or '—'} kg · BMI: {bmi}",
+        f"Address: {p.get('address') or '—'}",
+        f"Chronic conditions / history flags: {p.get('chronic_conditions') or '—'}",
+        f"Family history: {p.get('family_history') or '—'}",
+        f"Known allergies (patient-level): {p.get('allergies') or '—'}",
+        "",
+    ]
+
+    # All past cases (chronological, excluding current)
+    all_cases = await db.cases.find(
+        {"patient_id": p.get("id")}, {"_id": 0}
+    ).sort("created_at", 1).to_list(200)
+
+    past_cases = [c for c in all_cases if c.get("id") != current_case.get("id")]
+    lines.append(f"=== PAST VISITS ({len(past_cases)} on record) ===")
+    for i, c in enumerate(past_cases, 1):
+        when = (c.get("created_at") or "")[:10]
+        n = await db.clinical_notes.find_one({"case_id": c["id"]}, {"_id": 0}) or {}
+        rx = await db.prescriptions.find({"case_id": c["id"]}, {"_id": 0}).sort("version_no", -1).limit(1).to_list(1)
+        med_list = "; ".join([
+            f"{it.get('medicine_name', '').strip()} {it.get('potency', '').strip()} "
+            f"{it.get('dosage', '').strip()} {it.get('frequency', '').strip()}".strip()
+            for it in ((rx[0] if rx else {}).get("items") or [])
+        ]).strip("; ") or "—"
+        lines.append(
+            f"[Visit {i} · {when} · type {c.get('visit_type') or '—'}]\n"
+            f"  Complaint: {(c.get('complaint_text') or '—')[:400]}\n"
+            f"  Diagnosis: {(n.get('diagnosis_summary') or '—')[:400]}\n"
+            f"  Allergies/sensitivity: {(n.get('sensitivity_allergies') or '—')[:200]}\n"
+            f"  Suggestions: {(n.get('suggestions') or '—')[:300]}\n"
+            f"  Additional: {(n.get('additional_info') or '—')[:200]}\n"
+            f"  Rx: {med_list[:400]}\n"
+            f"  Follow-up: {c.get('next_followup_date') or '—'}"
+        )
+
+    # Current visit block
+    lines.append("")
+    lines.append("=== CURRENT VISIT (today, awaiting decision) ===")
+    lines.append(f"Case: {current_case.get('case_uid')} · type {current_case.get('visit_type') or '—'} · status {current_case.get('status')}")
+    lines.append(f"Complaint: {current_case.get('complaint_text') or '—'}")
+    if current_note:
+        lines.append(f"Working diagnosis: {current_note.get('diagnosis_summary') or '—'}")
+        lines.append(f"Sensitivity/allergies: {current_note.get('sensitivity_allergies') or '—'}")
+        lines.append(f"Safety notes: {current_note.get('safety_notes') or '—'}")
+        lines.append(f"Doctor's suggestions so far: {current_note.get('suggestions') or '—'}")
+        lines.append(f"Additional info: {current_note.get('additional_info') or '—'}")
+    if current_rx:
+        cur_meds = "; ".join([
+            f"{it.get('medicine_name', '')} {it.get('potency', '')} {it.get('dosage', '')} "
+            f"{it.get('frequency', '')} x {it.get('duration_days') or '?'}d"
+            for it in (current_rx.get("items") or [])
+        ]) or "—"
+        lines.append(f"Draft Rx on file: {cur_meds}")
+
+    # Attachments metadata (no OCR — just tell the model what exists)
+    atts = await db.attachments.find(
+        {"case_id": current_case.get("id"), "deleted_at": None}, {"_id": 0}
+    ).to_list(50)
+    if atts:
+        lines.append("")
+        lines.append(f"=== ATTACHMENTS ON THIS CASE ({len(atts)}) ===")
+        for a in atts:
+            kind = "image" if (a.get("content_type") or "").startswith("image/") else "document"
+            lines.append(
+                f"- {a.get('original_filename', '')} ({kind}, {a.get('content_type', '')}, "
+                f"{int((a.get('size_bytes') or 0) / 1024)} KB, uploaded {a.get('created_at', '')[:10]})"
+            )
+        lines.append("(Attachment CONTENTS are not embedded — treat these as external evidence "
+                     "the doctor has on hand. Reference them by filename if relevant, and note "
+                     "in Section 13 if their content would materially change the plan.)")
+
+    return "\n".join(lines)
+
+
+
 
 
 @router.post("/patients/{patient_id}/ai/recap")
