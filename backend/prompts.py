@@ -222,7 +222,7 @@ def case_decision_support() -> str:
         "- Use standard homeopathic notation for potencies (30C, 200C, 1M, 10M, Q, 6X, 12X).\n"
         "- Prefer classical remedies over proprietary combinations unless combinations are the "
         "  established choice (e.g. R89 for hair fall, Vertigoheel for vertigo).\n"
-        "- Total response 700-1100 words. Use bullet lists inside sections. Use **bold** for "
+        "- Total response 550-800 words. Use bullet lists inside sections. Use **bold** for "
         "  remedy names, key rubrics and warning phrases. Write in clear English.\n"
         "- If the record is very thin (single visit, no history), still produce all sections "
         "  but be honest about low confidence."

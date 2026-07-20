@@ -172,13 +172,19 @@ async def _build_clinical_dossier(current_case: dict, patient: dict, current_not
         "",
     ]
 
-    # All past cases (chronological, excluding current)
+    # All past cases (chronological, excluding current) — cap to most recent 12 to bound latency
     all_cases = await db.cases.find(
         {"patient_id": p.get("id")}, {"_id": 0}
     ).sort("created_at", 1).to_list(200)
 
     past_cases = [c for c in all_cases if c.get("id") != current_case.get("id")]
-    lines.append(f"=== PAST VISITS ({len(past_cases)} on record) ===")
+    total_past = len(past_cases)
+    past_cases = past_cases[-12:]  # most recent 12
+    header = f"=== PAST VISITS ({total_past} on record"
+    if total_past > 12:
+        header += f", showing most recent {len(past_cases)}"
+    header += ") ==="
+    lines.append(header)
     for i, c in enumerate(past_cases, 1):
         when = (c.get("created_at") or "")[:10]
         n = await db.clinical_notes.find_one({"case_id": c["id"]}, {"_id": 0}) or {}
@@ -190,12 +196,10 @@ async def _build_clinical_dossier(current_case: dict, patient: dict, current_not
         ]).strip("; ") or "—"
         lines.append(
             f"[Visit {i} · {when} · type {c.get('visit_type') or '—'}]\n"
-            f"  Complaint: {(c.get('complaint_text') or '—')[:400]}\n"
-            f"  Diagnosis: {(n.get('diagnosis_summary') or '—')[:400]}\n"
-            f"  Allergies/sensitivity: {(n.get('sensitivity_allergies') or '—')[:200]}\n"
-            f"  Suggestions: {(n.get('suggestions') or '—')[:300]}\n"
-            f"  Additional: {(n.get('additional_info') or '—')[:200]}\n"
-            f"  Rx: {med_list[:400]}\n"
+            f"  Complaint: {(c.get('complaint_text') or '—')[:250]}\n"
+            f"  Diagnosis: {(n.get('diagnosis_summary') or '—')[:250]}\n"
+            f"  Allergies: {(n.get('sensitivity_allergies') or '—')[:150]}\n"
+            f"  Rx: {med_list[:250]}\n"
             f"  Follow-up: {c.get('next_followup_date') or '—'}"
         )
 

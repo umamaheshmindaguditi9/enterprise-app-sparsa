@@ -113,6 +113,18 @@ Admin → sidebar → **AI Settings** (`/admin/ai`):
 **Option A (preferred):** Log in as ADMIN → sidebar → **Messaging** → paste keys → Save. Live immediately, no restart.
 **Option B:** Add to `/app/backend/.env` and restart backend:
 ```
+
+## One-tap "Apply to Rx" from AI Advisory (DONE 2026-07-20)
+- **New endpoint** `POST /api/cases/{id}/ai/apply-to-rx` (`routers/ai.py`, placed BEFORE the catch-all `/ai/{action}` for route ordering): takes the Markdown advisory as body → runs a strict-JSON extraction prompt (`prompts.extract_rx_from_advisory`) → returns `{items: [...], notes_for_patient: str}`.
+- **Extraction rules**: top-ranked classical remedy first, then optional mother tincture and biochemic salt if the advisory recommends them; each item has `medicine_name / potency / dosage / frequency / duration_days / instructions`. Robust JSON parsing (strips code fences, regex-extracts JSON object, coerces duration_days). Bilingual (EN/TE) instruction language.
+- **Model**: `AdvisoryIn` (min_length=20, max_length=20000).
+- **RBAC**: OWNER_DOCTOR + DOCTOR only (case ownership check). Audited as `AI_USED action=apply-to-rx items=N`.
+- **Frontend** (`CaseDetail.jsx`): after decision-support advisory renders, a prominent **"Apply top pick to Prescription"** button appears. Click → calls apply-to-rx → hoists a `pendingRxDraft` state at CaseDetail → auto-switches to the Prescription tab → PrescriptionTab shows a teal draft banner and pre-fills the medicine rows + notes-for-patient. Doctor reviews, edits, and taps Save prescription (nothing is auto-saved).
+- **Graceful empty extraction**: if the advisory has no concrete remedy (e.g. LOW confidence case with no data), returns `items=[]` and the UI shows a friendly error rather than switching tabs.
+- **Dossier tuning** (side improvement): decision-support dossier now caps at the 12 most recent past visits, per-visit text truncated to ~250 chars, target response 550-800 words to reduce LLM latency.
+- **Tests**: `/app/backend/tests/test_ai_apply_to_rx.py` — 15/16 pass (iteration_11). Only failure is the pre-existing edge proxy 502 on decision_support long calls (~60s edge budget); apply-to-rx itself responds in 1-4s.
+
+
 WHATSAPP_PHONE_NUMBER_ID=...
 WHATSAPP_ACCESS_TOKEN=...
 TWILIO_ACCOUNT_SID=...
