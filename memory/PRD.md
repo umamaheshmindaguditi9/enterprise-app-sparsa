@@ -94,6 +94,21 @@ Admin → sidebar → **AI Settings** (`/admin/ai`):
 - Tests: `/app/backend/tests/test_ai_settings.py` 7/7 pass. Verified fallback in logs (fake key → Emergent key → valid draft).
 - ⚠️ Note (2026-07-06): Emergent Universal Key budget was near-exhausted during testing (Budget exceeded 0.408/0.4) — user should top up via Profile → Universal Key → Add Balance, or add own provider keys.
 
+## Elegant Login + Mobile Polish + Homeopathic Clinical Decision Support (DONE 2026-07-20)
+- **Login page redesign**: full-bleed clinic reception image background with gradient overlay, centered glassmorphism card, larger 96px logo. `/app/frontend/src/pages/Login.jsx`.
+- **Mobile / tablet responsive shell** (P2 done): Sheet-based drawer sidebar on <lg, sticky mobile top bar with hamburger + logo + role, larger touch targets (nav-links min 44px, inputs 16px font to prevent iOS zoom, buttons min 44px). `/app/frontend/src/components/AppLayout.jsx`, `/app/frontend/src/index.css`.
+- **Responsive page pass**: all `p-8` pages now `p-4 sm:p-6 lg:p-8`, headings scale `text-2xl sm:text-3xl`, KPI grids collapse to 1/2 cols, wide tables wrap in `.table-scroll`, page headers stack on mobile.
+- **Stacked, tab-based Case Detail** (`/app/frontend/src/pages/doctor/CaseDetail.jsx`): tabs now icon+label, horizontally scrollable strip; header block stacks vertically on tablet/mobile; prescription grid switches to stacked layout on <sm; action buttons wrap and are 40-44px tall.
+- **Homeopathic Clinical Decision Support (AI Assist)** — new hero action on the AI tab:
+  - Backend: `POST /api/cases/{case_id}/ai/decision_support` (added to `routers/ai.py`). Assembles a full clinical dossier (patient profile + all past visits/notes/prescriptions + current case + attachment metadata) via new `_build_clinical_dossier()` helper and calls a homeopathy-specialist system prompt (`prompts.case_decision_support()`).
+  - Prompt expertise: materia medica (Boericke/Kent/Allen/Phatak/Clarke/Vermeulen), repertorization (Kent's/Boger/Synthesis), mother tinctures & Q potencies, German methodologies (Reckeweg/Schuessler biochemic/Heel), miasmatic analysis, evidence-informed homeopathy.
+  - Output: 13-section Markdown advisory (Case Snapshot → Clinical Reasoning → Differentials → Homeopathic Analysis with rubrics → Suggested Remedies → Mother Tinctures → German/Biochemic → Rx draft → Patient Advice → Follow-up → Red Flags → Evidence Notes → Confidence + gaps → Disclaimer). Rendered via `react-markdown` + `remark-gfm` with themed styling.
+  - RBAC preserved: only OWNER_DOCTOR + DOCTOR (with case-ownership check via `load_case_for_user`). Audited as `AI_USED action=decision_support`.
+  - Tests: `/app/backend/tests/test_ai_decision_support.py` 14/14 pass (iteration_10). RBAC + regression on existing summarize/advice/instructions actions verified.
+- Existing quick actions (summarize / advice / instructions) retained as secondary compact buttons under the hero card.
+
+
+
 ## How to enable WhatsApp + SMS reminders
 **Option A (preferred):** Log in as ADMIN → sidebar → **Messaging** → paste keys → Save. Live immediately, no restart.
 **Option B:** Add to `/app/backend/.env` and restart backend:
@@ -121,7 +136,7 @@ Per Emergent support: appears only in the preview environment. Auto-removed on d
 - Configurable reminder templates in admin UI.
 - Richer top_complaints (medical term filter / TF-IDF).
 - Brute-force lockout on `/api/auth/login`.
-- **Mobile / tablet responsive pass** (deferred 2026-06-30, user choice). Desktop is primary use case. Highest-value pages when revisiting: Login, Doctor Dashboard, Patient Timeline, Reminders, PRO Analytics. Estimated effort: ~2 hr for those 5 pages, ~½ day for full app overhaul.
+- ~~**Mobile / tablet responsive pass**~~ (DONE 2026-07-20 — drawer sidebar, responsive padding, stacked case detail, larger touch targets).
 
 ## Next Action Items
 - Replace `/app/frontend/public/logo.png` with a higher-res / SVG version anytime — the `<Logo />` component already loads from `/logo.png`.
