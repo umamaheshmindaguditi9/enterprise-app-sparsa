@@ -179,6 +179,12 @@ class ParseNotesIn(BaseModel):
     hint_doctor_id: Optional[str] = None
 
 
+class AdvisoryIn(BaseModel):
+    """Payload for /cases/{id}/ai/apply-to-rx — the raw Markdown advisory to structure."""
+    advisory: str = Field(..., min_length=20, max_length=20000)
+
+
+
 class AISettingsIn(BaseModel):
     """Admin-managed AI provider keys and model choice."""
     AI_PROVIDER: Optional[str] = None

@@ -4,7 +4,7 @@ import { api, fmtErr } from "@/lib/api";
 import StatusBadge from "@/components/StatusBadge";
 import {
   ArrowLeft, Loader2, Sparkles, Save, ArrowRight, Plus, Trash2,
-  Stethoscope, Pill, Paperclip, CalendarClock, Brain,
+  Stethoscope, Pill, Paperclip, CalendarClock, Brain, Wand2,
 } from "lucide-react";
 import AttachmentsTab from "@/components/AttachmentsTab";
 import ReactMarkdown from "react-markdown";
@@ -27,6 +27,7 @@ export default function CaseDetail() {
   const [bypassOpen, setBypassOpen] = useState(false);
   const [bypassReason, setBypassReason] = useState("");
   const [bypassErr, setBypassErr] = useState("");
+  const [pendingRxDraft, setPendingRxDraft] = useState(null); // {items, notes_for_patient, token}
 
   const reload = async () => {
     try { const r = await api.get(`/cases/${id}`); setData(r.data); }
@@ -128,10 +129,26 @@ export default function CaseDetail() {
       </div>
 
       {tab === "notes"       && <NotesTab caseId={c.id} initial={data.clinical_notes} onSaved={reload} />}
-      {tab === "rx"          && <PrescriptionTab caseId={c.id} latest={data.latest_prescription} onSaved={reload} />}
+      {tab === "rx"          && (
+        <PrescriptionTab
+          caseId={c.id}
+          latest={data.latest_prescription}
+          draft={pendingRxDraft}
+          onDraftConsumed={() => setPendingRxDraft(null)}
+          onSaved={reload}
+        />
+      )}
       {tab === "attachments" && <AttachmentsTab caseId={c.id} />}
       {tab === "followup"    && <FollowupTab caseData={c} onSaved={reload} />}
-      {tab === "ai"          && <AiTab caseId={c.id} />}
+      {tab === "ai"          && (
+        <AiTab
+          caseId={c.id}
+          onApplyDraft={(items, notes_for_patient) => {
+            setPendingRxDraft({ items, notes_for_patient, token: Date.now() });
+            setTab("rx");
+          }}
+        />
+      )}
 
       {bypassOpen && (
         <div className="fixed inset-0 bg-black/40 grid place-items-center z-50 p-4" onClick={() => setBypassOpen(false)} data-testid="bypass-modal">
@@ -208,13 +225,24 @@ const withKey = (it) => ({
   _key: it._key || (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`),
 });
 
-function PrescriptionTab({ caseId, latest, onSaved }) {
+function PrescriptionTab({ caseId, latest, draft, onDraftConsumed, onSaved }) {
   const [items, setItems] = useState(
     latest?.items?.length ? latest.items.map(withKey) : [withKey({ ...EMPTY_ITEM })]
   );
   const [notesForPatient, setNotesForPatient] = useState(latest?.notes_for_patient || "");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const [draftBanner, setDraftBanner] = useState("");
+
+  // When an AI draft arrives from the AI tab, replace items + notes_for_patient
+  useEffect(() => {
+    if (draft && Array.isArray(draft.items) && draft.items.length) {
+      setItems(draft.items.map((it) => withKey({ ...EMPTY_ITEM, ...it })));
+      if (draft.notes_for_patient) setNotesForPatient(draft.notes_for_patient);
+      setDraftBanner(`Loaded ${draft.items.length} AI-drafted item${draft.items.length > 1 ? "s" : ""}. Review, edit if needed, then Save prescription.`);
+      onDraftConsumed?.();
+    }
+  }, [draft?.token]);
 
   const update = (i, key, value) => {
     const next = [...items];
@@ -239,6 +267,13 @@ function PrescriptionTab({ caseId, latest, onSaved }) {
 
   return (
     <div className="bg-white border border-gray-200 rounded-md p-4 sm:p-6 space-y-5" data-testid="prescription-tab">
+      {draftBanner && (
+        <div className="flex items-start gap-2 rounded-md border border-teal-200 bg-teal-50 px-3 py-2.5 text-sm text-teal-900" data-testid="rx-ai-draft-banner">
+          <Wand2 size={16} strokeWidth={1.75} className="text-teal-700 mt-0.5 shrink-0" />
+          <div className="flex-1">{draftBanner}</div>
+          <button onClick={() => setDraftBanner("")} className="text-teal-700 hover:text-teal-900 text-xs font-medium">Dismiss</button>
+        </div>
+      )}
       {latest && <div className="text-xs text-gray-500">Current version: <span className="tabular-nums font-medium text-gray-700">v{latest.version_no}</span></div>}
       <div className="space-y-3">
         {items.map((it, i) => (
@@ -322,20 +357,36 @@ function FollowupTab({ caseData, onSaved }) {
   );
 }
 
-function AiTab({ caseId }) {
+function AiTab({ caseId, onApplyDraft }) {
   const [result, setResult] = useState("");
   const [resultKind, setResultKind] = useState("markdown"); // "markdown" | "plain"
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
+  const [applyBusy, setApplyBusy] = useState(false);
+  const [applyErr, setApplyErr] = useState("");
 
   const run = async (action) => {
-    setBusy(action); setErr(""); setResult("");
+    setBusy(action); setErr(""); setResult(""); setApplyErr("");
     setResultKind(action === "decision_support" ? "markdown" : "plain");
     try {
       const { data } = await api.post(`/cases/${caseId}/ai/${action}`);
       setResult(data.result);
     } catch (e) { setErr(fmtErr(e)); }
     finally { setBusy(""); }
+  };
+
+  const applyToRx = async () => {
+    if (!result) return;
+    setApplyBusy(true); setApplyErr("");
+    try {
+      const { data } = await api.post(`/cases/${caseId}/ai/apply-to-rx`, { advisory: result });
+      if (!data.items?.length) {
+        setApplyErr("AI could not extract a concrete prescription from this advisory. Try re-running Analyze Case or add more clinical notes first.");
+        return;
+      }
+      onApplyDraft?.(data.items, data.notes_for_patient || "");
+    } catch (e) { setApplyErr(fmtErr(e)); }
+    finally { setApplyBusy(false); }
   };
 
   const quickActions = [
@@ -409,6 +460,28 @@ function AiTab({ caseId }) {
         )}
         {result && resultKind === "plain" && (
           <div className="text-[15px] text-gray-800 whitespace-pre-wrap leading-relaxed" data-testid="ai-result">{result}</div>
+        )}
+        {result && resultKind === "markdown" && (
+          <div className="mt-5 pt-4 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center gap-3">
+            <button
+              onClick={applyToRx}
+              disabled={applyBusy}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white rounded-md text-sm font-semibold min-h-[44px] shadow-sm"
+              data-testid="ai-apply-to-rx-btn"
+            >
+              {applyBusy
+                ? <><Loader2 size={15} className="animate-spin" /> Drafting prescription…</>
+                : <><Wand2 size={15} strokeWidth={1.75} /> Apply top pick to Prescription</>}
+            </button>
+            <span className="text-xs text-gray-500 leading-relaxed">
+              Extracts the top remedy (+ adjuncts if suggested) into the Prescription tab for your review. Nothing is saved automatically.
+            </span>
+          </div>
+        )}
+        {applyErr && (
+          <div className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2" data-testid="ai-apply-error">
+            {applyErr}
+          </div>
         )}
         {result && (
           <div className="mt-5 pt-4 border-t border-gray-100 text-xs text-gray-500 leading-relaxed flex items-start gap-2">

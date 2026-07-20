@@ -1,0 +1,35 @@
+{
+  "summary": "Backend-only tests for new POST /api/cases/{case_id}/ai/apply-to-rx endpoint. Created /app/backend/tests/test_ai_apply_to_rx.py with 16 tests covering happy path, body validation (422), RBAC (403 for PRO/RECEPTION/PHARMACY/ADMIN + DOCTOR on non-owned case), vague/empty advisory (items=[]), route ordering (not intercepted by catch-all), audit log, and regression on summarize/advice/instructions/decision_support. 15/16 tests PASSED. 1 test (decision_support regression) failed due to proxy 502 gateway-timeout at ~60-75s — backend logs confirm the endpoint itself succeeds with 200 in ~86-88s, so this is an ingress/proxy timeout issue, NOT a regression from this feature. The new apply-to-rx endpoint responds in 1-4s.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/cases/{id}/ai/decision_support", "issue": "Proxy returns 502 gateway timeout because backend LLM call takes 86-88s exceeding edge ~60s timeout. Backend itself returns 200 (verified in supervisor logs). Not caused by apply-to-rx feature. Consider either (a) streaming/async job pattern, (b) shorter dossier / max_tokens tuning, or (c) confirming edge proxy allows longer AI timeouts."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_ai_apply_to_rx.py",
+    "/app/test_reports/pytest/iteration11_apply_to_rx.xml"
+  ],
+  "action_items": [
+    "Existing decision_support endpoint hits ~86s duration causing occasional 502s at proxy. Not blocking the apply-to-rx feature but worth optimising the dossier size or moving to async job pattern."
+  ],
+  "critical_code_review_comments": [
+    "apply-to-rx route is correctly registered BEFORE the catch-all /ai/{action} — verified 200 responses instead of 400 'Invalid action'.",
+    "AdvisoryIn pydantic model correctly enforces min_length=20/max_length=20000 → 422 for both boundaries.",
+    "JSON extraction pipeline (strip code fences → regex find braces → json.loads) is defensive and handles common LLM formatting quirks.",
+    "duration_days coercion handles str/int/None/'null' gracefully.",
+    "Audit log payload includes items count as specified — verified via /api/admin/audit-logs?action=AI_USED.",
+    "Vague advisory correctly yields items=[] with notes_for_patient='' (200) as per prompt contract."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_ai_apply_to_rx.py (new)"
+  ],
+  "success_rate": {"backend": "94% (15/16 — 1 pre-existing infra timeout on decision_support)", "frontend": "N/A (skipped per request)"},
+  "test_credentials": "admin1/jyothi/hemanth/reception1/pharmacy1/pro1 all with Password@123 — all validated during test run.",
+  "seed_data_creation": "None — used existing cases from seeded data.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The apply-to-rx feature is fully functional and safe to ship. If retesting, the single decision_support regression test may or may not pass depending on proxy timing; this is orthogonal to the apply-to-rx feature under review. All 8 requested test scenarios from the review request are covered by TestApplyToRxHappyPath, TestApplyToRxValidation, TestApplyToRxRBAC, TestApplyToRxVagueAdvisory, TestRouteOrdering, TestRegressionExistingAI, TestApplyToRxAuditLog.",
+  "rca of the issue": "Failing test test_decision_support_still_works — RCA: backend log shows request completes with status 200 in 86220ms/88220ms, but the intermediate edge proxy (Cloudflare-style) returns 502 to the client at ~60-75s. This is not a code bug in either apply-to-rx or decision_support; it's the ingress proxy's upstream request-timeout budget. Mitigation: reduce dossier context (fewer past visits or truncated content) or lower model max_tokens to shorten LLM latency below the edge timeout, OR switch decision_support to an async job model (POST returns 202 + job_id, client polls)."
+}

@@ -10,7 +10,7 @@ from core import (
     get_current_user, require_roles, load_case_for_user,
     ROLE_OWNER_DOCTOR, ROLE_DOCTOR, ROLE_RECEPTION, ROLE_ADMIN,
 )
-from models import ParseNotesIn
+from models import ParseNotesIn, AdvisoryIn
 import prompts
 
 router = APIRouter()
@@ -39,6 +39,64 @@ async def _call_llm(system: str, user_text: str, tag: str) -> str:
             log.warning("Own %s key failed for %s; falling back to Emergent key", cfg["provider"], tag)
             return await _run(cfg["fallback_key"])
         raise
+
+
+
+
+@router.post("/cases/{case_id}/ai/apply-to-rx")
+async def ai_apply_to_rx(
+    case_id: str,
+    payload: AdvisoryIn,
+    user: dict = Depends(require_roles(ROLE_OWNER_DOCTOR, ROLE_DOCTOR)),
+):
+    """Convert a homeopathic decision-support advisory into a structured prescription
+    draft the doctor can review/save. Returns strict JSON: {items, notes_for_patient}."""
+    c = await load_case_for_user(case_id, user)
+    patient = await db.patients.find_one({"id": c["patient_id"]}, {"_id": 0})
+    lang = (patient or {}).get("preferred_language", "EN")
+
+    system = prompts.extract_rx_from_advisory(lang)
+
+    try:
+        raw = await _call_llm(system, payload.advisory, f"apply-rx-{case_id}")
+    except Exception as e:
+        log.exception("Apply-to-rx error")
+        raise HTTPException(status_code=502, detail=f"AI service error: {e}") from e
+
+    cleaned = raw.strip()
+    cleaned = re.sub(r"^```(?:json)?", "", cleaned).strip()
+    cleaned = re.sub(r"```$", "", cleaned).strip()
+    match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+    if not match:
+        raise HTTPException(status_code=502, detail="AI returned no JSON object")
+    try:
+        parsed = json.loads(match.group(0))
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=502, detail=f"AI returned invalid JSON: {e}") from e
+
+    raw_items = parsed.get("items") or []
+    items = []
+    for it in raw_items[:5]:
+        if not isinstance(it, dict) or not (it.get("medicine_name") or "").strip():
+            continue
+        dur = it.get("duration_days")
+        try:
+            dur = int(dur) if dur not in (None, "", "null") else None
+        except (TypeError, ValueError):
+            dur = None
+        items.append({
+            "medicine_name": str(it.get("medicine_name", "")).strip(),
+            "potency": str(it.get("potency", "")).strip(),
+            "dosage": str(it.get("dosage", "")).strip(),
+            "frequency": str(it.get("frequency", "")).strip(),
+            "duration_days": dur,
+            "instructions": str(it.get("instructions", "")).strip(),
+        })
+
+    notes_for_patient = str(parsed.get("notes_for_patient", "") or "").strip()
+
+    await audit(user, "AI_USED", "Case", case_id, {"action": "apply-to-rx", "items": len(items)})
+    return {"items": items, "notes_for_patient": notes_for_patient}
 
 
 @router.post("/cases/{case_id}/ai/{action}")
@@ -305,3 +363,4 @@ async def parse_visit_notes(
 
     await audit(user, "AI_USED", "Notes", "parse", {"chars": len(text), "items": len(parsed.get("prescription_items", []))})
     return {"draft": parsed, "raw": raw}
+

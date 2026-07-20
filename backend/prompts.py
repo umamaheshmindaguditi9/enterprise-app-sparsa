@@ -232,6 +232,58 @@ def case_decision_support() -> str:
 
 
 
+def extract_rx_from_advisory(lang: str) -> str:
+    """Convert a homeopathic decision-support advisory (Markdown) into a strict-JSON
+    prescription draft. Output schema (JSON only, no prose, no markdown fences):
+        {"items": [{"medicine_name": str, "potency": str, "dosage": str,
+                    "frequency": str, "duration_days": int | null,
+                    "instructions": str}],
+         "notes_for_patient": str}
+    """
+    lang_note = (
+        "Write instructions & notes_for_patient in Telugu script." if lang == "TE"
+        else "Write instructions & notes_for_patient in clear English."
+    )
+    return (
+        "You are converting a HOMEOPATHIC CLINICAL DECISION-SUPPORT ADVISORY (Markdown) into a "
+        "structured PRESCRIPTION DRAFT for the treating doctor to review. Read the advisory below "
+        "and extract 1 to 3 medicine items:\n"
+        "  1. The TOP-RANKED classical remedy from '## 5. Suggested Remedies'.\n"
+        "  2. (Optional) One mother tincture from '## 6. Mother Tinctures & Combinations' IF the "
+        "     advisory recommends it as an adjunct.\n"
+        "  3. (Optional) One biochemic salt / German remedy from '## 7. German / Biochemic "
+        "     Considerations' IF explicitly recommended (skip when the section says "
+        "     'Not indicated').\n"
+        "Use the concrete dosing hints from '## 8. Prescription Instructions (Draft)' when present.\n\n"
+        "Output ONLY minified JSON (no prose, no markdown fences, no comments) with EXACTLY this schema:\n"
+        '  {"items": [{"medicine_name": str, "potency": str, "dosage": str, '
+        '"frequency": str, "duration_days": int or null, "instructions": str}], '
+        '"notes_for_patient": str}\n\n'
+        "Rules:\n"
+        "- medicine_name: capitalised classical/Latin name only (e.g. 'Natrum Muriaticum', "
+        "  'Crataegus', 'Kali Phosphoricum'). No brand names.\n"
+        "- potency: single standard notation (30C / 200C / 1M / 10M / Q / 6X / 12X). If the "
+        "  advisory gives a range like '200C or 1M', pick the LOWER potency conservatively.\n"
+        "- dosage: e.g. '4 pills', '10 drops in 1/4 cup water', '1 dose'.\n"
+        "- frequency: standard abbreviations — 'OD' (once daily), 'BD' (twice), 'TDS' (thrice), "
+        "  'QID' (four), 'HS' (bedtime), 'PRN' (as needed), 'Weekly single dose' (for 1M/10M), "
+        "  'STAT' (one-off).\n"
+        "- duration_days: integer days. Use 7-14 for acute follow-ups, 30 for chronic maintenance, "
+        "  or null when the advisory is silent.\n"
+        "- instructions: one concise do/don't line, e.g. 'Empty stomach; no coffee/mint/camphor "
+        "  within 15 min of dose'.\n"
+        "- notes_for_patient: 2-3 short lines derived from '## 9. Patient Advice' (plain language, "
+        "  no remedy names, no jargon).\n"
+        f"- {lang_note}\n"
+        "- DO NOT invent medicines or dosing that are not in the advisory. If the advisory has "
+        "  no concrete remedy pick (e.g. confidence LOW with no candidate named), output "
+        '  exactly {"items": [], "notes_for_patient": ""}.\n'
+        "- Return only the JSON object. No leading/trailing text."
+    )
+
+
+
+
 def parse_visit_notes() -> str:
     """Parse free-text Google Docs / hand-written visit notes into a structured single-visit JSON draft.
     Output schema (JSON only, no prose, no markdown fences):
