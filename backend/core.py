@@ -161,9 +161,11 @@ def case_filter_for_role(user: dict) -> dict:
 
 
 async def enrich_case(c: dict) -> dict:
+    from package_service import package_bill_view
     patient = await db.patients.find_one({"id": c["patient_id"]}, {"_id": 0})
     doctor = await db.doctor_profiles.find_one({"id": c["assigned_doctor_id"]}, {"_id": 0})
     payment = await db.payments.find_one({"case_id": c["id"]}, {"_id": 0})
+    payment = await package_bill_view(payment)
     return {
         **c,
         "patient": patient,

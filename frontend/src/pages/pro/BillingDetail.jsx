@@ -3,6 +3,8 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, fmtErr } from "@/lib/api";
 import StatusBadge, { PaymentBadge } from "@/components/StatusBadge";
 import { ArrowLeft, Loader2, Save, Printer, CheckCircle2, User, ListChecks, Upload, FileImage, Trash2 } from "lucide-react";
+import { PackageBilling } from "@/components/packages/PackageBilling";
+import { PackageSummary } from "@/components/packages/PackageSummary";
 
 export default function BillingDetail() {
   const { id } = useParams();
@@ -18,6 +20,7 @@ export default function BillingDetail() {
   });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const [billingMode, setBillingMode] = useState("legacy");
 
   const reload = async () => {
     try {
@@ -46,6 +49,7 @@ export default function BillingDetail() {
   if (!data) return <div className="p-8 grid place-items-center text-gray-400"><Loader2 className="animate-spin" /></div>;
 
   const c = data.case;
+  const packageMode = !!c.package_id || billingMode === "package";
   const total = Number(form.consultation_amount || 0) + (form.medicines_taken ? Number(form.medicine_amount || 0) : 0);
   const balance = Math.max(0, total - Number(form.amount_paid || 0));
   const isClosed = c.status === "CLOSED" && data.payment?.payment_status === "PAID";
@@ -80,11 +84,12 @@ export default function BillingDetail() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto" data-testid="billing-detail">
       <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 mb-3"><ArrowLeft size={14} /> Back</button>
-      <div className="bg-white border border-gray-200 rounded-md p-6 mb-6 flex items-start justify-between">
+      <div className="bg-white border border-gray-200 rounded-md p-4 sm:p-6 mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1 tabular-nums">{c.case_uid}</div>
           <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">{c.patient?.first_name} {c.patient?.last_name}</h1>
           <div className="text-sm text-gray-600 mt-1 tabular-nums">{c.patient?.patient_uid} · {c.patient?.phone} · Doctor: {c.doctor?.display_name}</div>
+          {c.package_snapshot && <div className="mt-4"><PackageSummary value={c.package_snapshot} prefix="billing-package-snapshot" compact /></div>}
         </div>
         <div className="flex flex-col items-end gap-2">
           <StatusBadge status={c.status} />
@@ -92,7 +97,9 @@ export default function BillingDetail() {
         </div>
       </div>
 
-      {isClosed && (
+      {!data.payment && !c.package_id && <div className="flex flex-wrap gap-2 mb-5" role="group" aria-label="Billing type"><button onClick={() => setBillingMode("legacy")} className={`px-4 py-2 text-sm border rounded-md ${!packageMode ? "bg-teal-700 text-white" : "bg-white"}`} data-testid="billing-mode-visit">Per-visit billing</button><button onClick={() => setBillingMode("package")} className={`px-4 py-2 text-sm border rounded-md ${packageMode ? "bg-teal-700 text-white" : "bg-white"}`} data-testid="billing-mode-package">Package billing</button></div>}
+      {packageMode && <PackageBilling key={c.package_id || c.id} caseData={c} onSaved={reload} />}
+      {isClosed && !packageMode && (
         <div className="bg-gradient-to-br from-emerald-50 to-white border-2 border-emerald-200 rounded-md p-6 mb-6" data-testid="payment-success-card">
           <div className="flex items-start gap-4">
             <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 grid place-items-center shrink-0">
@@ -136,8 +143,8 @@ export default function BillingDetail() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <div className={`col-span-2 bg-white border border-gray-200 rounded-md p-6 ${isClosed ? "opacity-75" : ""}`}>
+      {!packageMode && <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+        <div className={`sm:col-span-2 min-w-0 bg-white border border-gray-200 rounded-md p-4 sm:p-6 ${isClosed ? "opacity-75" : ""}`}>
           <h2 className="font-display text-lg font-semibold text-gray-900 mb-4">
             {isClosed ? "Payment summary (closed)" : "Payment"}
           </h2>
@@ -206,7 +213,7 @@ export default function BillingDetail() {
           <Row label="Paid" value={Number(form.amount_paid) || 0} />
           <Row label="Balance" value={balance} bold />
         </div>
-      </div>
+      </div>}
 
       <PaymentProofPanel caseId={c.id} />
       <style>{`.input { width:100%; padding:0.5rem 0.75rem; border:1px solid #e5e7eb; border-radius:0.375rem; font-size:0.875rem; outline:none; }

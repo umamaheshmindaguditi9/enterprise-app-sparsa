@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, fmtErr } from "@/lib/api";
 import { ArrowLeft, UserPlus, Loader2 } from "lucide-react";
+import { PatientPhotoEditor } from "@/components/PatientPhotoEditor";
+import { useAuth } from "@/contexts/AuthContext";
 
 const SOURCES = [
   { value: "TELEVISION", label: "Television" },
@@ -33,10 +35,17 @@ const initialForm = {
 
 export default function NewPatient() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [form, setForm] = useState(initialForm);
   const [doctors, setDoctors] = useState([]);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [photo, setPhoto] = useState(null);
+  const [photoPreparing, setPhotoPreparing] = useState(false);
+  const [registeredPatient, setRegisteredPatient] = useState(null);
+  const [photoError, setPhotoError] = useState("");
+  const submitting = useRef(false);
+  const canAddPhoto = ["RECEPTION", "ADMIN"].includes(user?.role);
 
   useEffect(() => {
     (async () => {
@@ -62,8 +71,31 @@ export default function NewPatient() {
     }));
   };
 
+  const savePhotoAndContinue = async patient => {
+    setPhotoError("");
+    if (photo) {
+      try {
+        const body = new FormData();
+        body.append("file", photo, "patient.jpg");
+        await api.put(`/patients/${patient.id}/photo`, body);
+      } catch (error) {
+        setPhotoError(fmtErr(error));
+        return;
+      }
+    }
+    navigate(`/reception/patients/${patient.id}/timeline`);
+  };
+
+  const retryPhoto = async () => {
+    if (submitting.current || !registeredPatient) return;
+    submitting.current = true; setBusy(true);
+    try { await savePhotoAndContinue(registeredPatient); }
+    finally { submitting.current = false; setBusy(false); }
+  };
+
   const submit = async (e) => {
     e.preventDefault();
+    if (submitting.current || registeredPatient || photoPreparing) return;
     if (!form.consulting_doctor_id) { setErr("Please select a consulting doctor."); return; }
     // Sanity-check height/weight units (common slip-up: entering height in feet/meters)
     const h = form.height_cm ? Number(form.height_cm) : null;
@@ -76,7 +108,7 @@ export default function NewPatient() {
       setErr(`Weight looks off (${w}). Enter the value in kilograms — for example 65.`);
       return;
     }
-    setBusy(true); setErr("");
+    submitting.current = true; setBusy(true); setErr("");
     try {
       const payload = {
         ...form,
@@ -90,25 +122,28 @@ export default function NewPatient() {
         if (payload[k] === "" || payload[k] === null) delete payload[k];
       });
       const { data } = await api.post("/patients/fir", payload);
-      navigate(`/reception/patients/${data.patient.id}/timeline`);
+      setRegisteredPatient(data.patient);
+      await savePhotoAndContinue(data.patient);
     } catch (e2) {
       setErr(fmtErr(e2));
     } finally {
-      setBusy(false);
+      submitting.current = false; setBusy(false);
     }
   };
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto" data-testid="new-patient-fir-page">
-      <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 mb-4">
+      <button onClick={() => navigate(-1)} disabled={busy} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 mb-4" data-testid="fir-back-button">
         <ArrowLeft size={14} /> Back
       </button>
       <div className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1">Reception · First Information Report</div>
       <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900 mb-8">New patient registration</h1>
 
       <form onSubmit={submit} className="space-y-6" data-testid="fir-form">
+        <fieldset disabled={busy || !!registeredPatient} className="space-y-6 min-w-0">
         {/* Patient Information */}
         <Section title="Patient Information">
+          {canAddPhoto && <PatientPhotoEditor onDraftChange={setPhoto} onProcessingChange={setPhotoPreparing} disabled={busy || !!registeredPatient} />}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Field label="First name" required>
               <input className="input" value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} required data-testid="first-name-input" />
@@ -214,12 +249,22 @@ export default function NewPatient() {
           </Field>
         </Section>
 
+        </fieldset>
+
         {err && <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2" data-testid="fir-error">{err}</div>}
+        {registeredPatient && photoError && <div className="border border-amber-200 bg-amber-50 rounded-md p-4 space-y-3" role="alert" data-testid="fir-photo-upload-warning">
+          <p className="text-sm font-medium text-amber-900" data-testid="fir-registration-saved">Patient {registeredPatient.patient_uid} and first visit are registered. The photo has not been saved yet.</p>
+          <p className="text-sm text-amber-800" data-testid="fir-photo-upload-error">{photoError}</p>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={retryPhoto} disabled={busy} className="px-3 py-2 bg-teal-700 hover:bg-teal-800 text-white rounded-md text-sm disabled:opacity-60" data-testid="fir-retry-photo">{busy ? "Uploading photo…" : "Retry photo upload"}</button>
+            <button type="button" onClick={() => navigate(`/reception/patients/${registeredPatient.id}/timeline`)} disabled={busy} className="px-3 py-2 bg-white border border-gray-300 rounded-md text-sm disabled:opacity-60" data-testid="fir-continue-without-photo">Continue without photo</button>
+          </div>
+        </div>}
 
         <div className="flex gap-2 pt-2">
-          <button type="submit" disabled={busy} className="inline-flex items-center gap-2 px-5 py-2.5 bg-teal-700 hover:bg-teal-800 text-white rounded-md text-sm font-medium disabled:opacity-60" data-testid="save-patient-btn">
+          <button type="submit" disabled={busy || photoPreparing || !!registeredPatient} className="inline-flex items-center gap-2 px-5 py-2.5 bg-teal-700 hover:bg-teal-800 text-white rounded-md text-sm font-medium disabled:opacity-60" data-testid="save-patient-btn">
             {busy ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} strokeWidth={1.5} />}
-            Register patient & start visit
+            {registeredPatient ? (busy ? "Saving patient photo…" : "Patient registered") : "Register patient & start visit"}
           </button>
         </div>
       </form>

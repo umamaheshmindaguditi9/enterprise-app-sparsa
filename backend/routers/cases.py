@@ -17,6 +17,8 @@ from core import (
 from models import (
     CaseCreateIn, StatusUpdateIn, ClinicalNoteIn, PrescriptionIn, FollowupIn,
 )
+from package_service import package_bill_view
+from package_service import load_package, package_view
 
 router = APIRouter()
 
@@ -89,7 +91,7 @@ async def get_case(case_id: str, user: dict = Depends(get_current_user)):
 
     if role in (ROLE_PRO, ROLE_OWNER_DOCTOR, ROLE_RECEPTION, ROLE_ADMIN):
         payment = await db.payments.find_one({"case_id": case_id}, {"_id": 0})
-        response["payment"] = payment
+        response["payment"] = await package_bill_view(payment)
 
     return response
 
@@ -114,6 +116,9 @@ async def update_case_status(case_id: str, payload: StatusUpdateIn, user: dict =
     }
     if payload.status not in allowed.get(role, set()):
         raise HTTPException(status_code=403, detail=f"Role {role} cannot set status {payload.status}")
+    if payload.status == STATUS_SENT_PHARMACY and c.get("package_id"):
+        if package_view(await load_package(c["package_id"]))["package_status"] not in ("ACTIVE", "ENDING_SOON"):
+            raise HTTPException(409, "Package is not active. Renewal is required before another medicine visit.")
 
     # Doctor bypass-to-pharmacy must include an audit-friendly reason.
     if role == ROLE_DOCTOR and payload.status == STATUS_SENT_PHARMACY:
@@ -159,10 +164,14 @@ async def save_notes(
     await load_case_for_user(case_id, user)
     note_doc = {
         "case_id": case_id,
-        **payload.model_dump(),
+        **{k: v for k, v in payload.model_dump(exclude_unset=True).items() if k not in ("family_history", "personal_history")},
         "updated_by": user["id"],
         "updated_at": now_utc().isoformat(),
     }
+    for section in ("family_history", "personal_history"):
+        if section in payload.model_fields_set:
+            for key, value in getattr(payload, section).model_dump(exclude_unset=True).items():
+                note_doc[f"{section}.{key}"] = value
     await db.clinical_notes.update_one(
         {"case_id": case_id},
         {"$set": note_doc, "$setOnInsert": {"created_by": user["id"], "created_at": now_utc().isoformat()}},

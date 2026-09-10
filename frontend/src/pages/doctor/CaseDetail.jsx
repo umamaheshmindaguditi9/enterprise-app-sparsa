@@ -9,6 +9,8 @@ import {
 import AttachmentsTab from "@/components/AttachmentsTab";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { ClinicalNotesEditor } from "@/components/ClinicalNotesEditor";
+import { PatientPhoto } from "@/components/PatientPhoto";
 
 const TABS = [
   { key: "notes",       label: "Notes",        icon: Stethoscope },
@@ -72,9 +74,7 @@ export default function CaseDetail() {
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
           <div className="min-w-0">
             <div className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1 tabular-nums">{c.case_uid}</div>
-            <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900 break-words">
-              {c.patient?.first_name} {c.patient?.last_name}
-            </h1>
+            <div className="flex items-center gap-3"><PatientPhoto patientId={c.patient?.id} testId="doctor-patient-photo" /><h1 className="font-display text-2xl sm:text-3xl font-semibold text-gray-900 break-words min-w-0" data-testid="doctor-patient-name">{c.patient?.first_name} {c.patient?.last_name}</h1></div>
             <div className="text-sm text-gray-600 mt-1 tabular-nums">
               {c.patient?.patient_uid} · {c.patient?.gender} · {c.patient?.age}y · {c.patient?.phone}
             </div>
@@ -128,7 +128,7 @@ export default function CaseDetail() {
         </div>
       </div>
 
-      {tab === "notes"       && <NotesTab caseId={c.id} initial={data.clinical_notes} onSaved={reload} />}
+      {tab === "notes"       && <ClinicalNotesEditor key={c.id} caseId={c.id} initial={data.clinical_notes} onSaved={reload} />}
       {tab === "rx"          && (
         <PrescriptionTab
           caseId={c.id}
@@ -173,48 +173,6 @@ export default function CaseDetail() {
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function NotesTab({ caseId, initial, onSaved }) {
-  const [form, setForm] = useState(initial || { diagnosis_summary: "", sensitivity_allergies: "", safety_notes: "", suggestions: "", additional_info: "" });
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState("");
-
-  const save = async () => {
-    setBusy(true); setMsg("");
-    try { await api.put(`/cases/${caseId}/notes`, form); setMsg("Saved."); onSaved(); }
-    catch (e) { setMsg(fmtErr(e)); }
-    finally { setBusy(false); }
-  };
-
-  return (
-    <div className="bg-white border border-gray-200 rounded-md p-4 sm:p-6 space-y-4" data-testid="notes-tab">
-      <Field label="Diagnosis / Assessment Summary">
-        <textarea rows={3} className="input" value={form.diagnosis_summary || ""} onChange={(e) => setForm({ ...form, diagnosis_summary: e.target.value })} data-testid="diagnosis-input" />
-      </Field>
-      <Field label="Sensitivity / Allergies">
-        <textarea rows={2} className="input" value={form.sensitivity_allergies || ""} onChange={(e) => setForm({ ...form, sensitivity_allergies: e.target.value })} data-testid="allergies-input" />
-      </Field>
-      <Field label="Safety / Precautions">
-        <textarea rows={2} className="input" value={form.safety_notes || ""} onChange={(e) => setForm({ ...form, safety_notes: e.target.value })} />
-      </Field>
-      <Field label="Suggestions / Advice">
-        <textarea rows={2} className="input" value={form.suggestions || ""} onChange={(e) => setForm({ ...form, suggestions: e.target.value })} />
-      </Field>
-      <Field label="Additional information">
-        <textarea rows={2} className="input" value={form.additional_info || ""} onChange={(e) => setForm({ ...form, additional_info: e.target.value })} />
-      </Field>
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-2">
-        <button onClick={save} disabled={busy} className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-teal-700 hover:bg-teal-800 text-white rounded-md text-sm font-medium disabled:opacity-60 min-h-[44px]" data-testid="save-notes-btn">
-          {busy ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-          Save notes
-        </button>
-        {msg && <span className="text-sm text-gray-500">{msg}</span>}
-      </div>
-      <style>{`.input { width:100%; padding:0.625rem 0.75rem; border:1px solid #e5e7eb; border-radius:0.375rem; font-size:0.9375rem; outline:none; }
-      .input:focus { border-color:#0F766E; box-shadow: 0 0 0 3px rgba(15,118,110,.18); }`}</style>
     </div>
   );
 }

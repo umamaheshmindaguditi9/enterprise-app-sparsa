@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api, fmtErr } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { PatientPhoto } from "@/components/PatientPhoto";
+import { PatientPhotoEditor } from "@/components/PatientPhotoEditor";
 import StatusBadge, { PaymentBadge } from "@/components/StatusBadge";
 import { ArrowLeft, Loader2, FileText, Pill, ReceiptText, Paperclip, Calendar, Sparkles, X, FilePlus } from "lucide-react";
 
@@ -79,20 +81,21 @@ export default function PatientTimeline() {
       </Link>
       <div className="bg-white border border-gray-200 rounded-md p-6 mb-6">
         <div className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1 tabular-nums">{p.patient_uid}</div>
-        <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">{p.first_name} {p.last_name}</h1>
+        <div className="flex gap-3 items-center">{["RECEPTION", "ADMIN", "DOCTOR", "OWNER_DOCTOR"].includes(user?.role) && <PatientPhoto patientId={p.id} testId="profile-patient-photo" />}<h1 className="font-display text-2xl sm:text-3xl font-semibold text-gray-900 min-w-0 break-words" data-testid="profile-patient-name">{p.first_name} {p.last_name}</h1></div>
         <div className="text-sm text-gray-600 mt-1 tabular-nums">
           {p.gender} · {p.age}y · {p.phone} · {p.preferred_language === "TE" ? "Telugu" : "English"}
         </div>
         {p.address && <div className="text-sm text-gray-500 mt-1">{p.address}</div>}
+        {["RECEPTION", "ADMIN"].includes(user?.role) && <PatientPhotoEditor patientId={p.id} />}
       </div>
 
-      <div className="flex items-center justify-between gap-2 mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <div className="flex items-center gap-2">
           <Calendar size={15} strokeWidth={1.5} className="text-gray-500" />
           <h2 className="font-display text-base font-semibold text-gray-900">Visit history</h2>
           <span className="text-xs text-gray-500 tabular-nums ml-1">({data.timeline.length})</span>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {!isDoctor && (
             <Link
               to={`/reception/patients/${id}/past-visit`}
@@ -178,6 +181,9 @@ export default function PatientTimeline() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                 {t.clinical_notes ? (
                   <Section icon={FileText} title="Notes">
+                    {t.clinical_notes.chief_complaint && <p className="text-gray-700 line-clamp-3" data-testid={`timeline-chief-complaint-${t.case.id}`}>{t.clinical_notes.chief_complaint}</p>}
+                    {t.clinical_notes.presenting_complaint && <p className="text-gray-600 line-clamp-3" data-testid={`timeline-presenting-complaint-${t.case.id}`}>{t.clinical_notes.presenting_complaint}</p>}
+                    {t.clinical_notes.notes && <p className="text-gray-600 line-clamp-3" data-testid={`timeline-notes-${t.case.id}`}>{t.clinical_notes.notes}</p>}
                     {t.clinical_notes.diagnosis_summary && <p className="text-gray-700 line-clamp-3">{t.clinical_notes.diagnosis_summary}</p>}
                     {t.clinical_notes.sensitivity_allergies && <p className="text-gray-500 mt-1"><span className="text-[10px] uppercase tracking-wider">Allergies:</span> {t.clinical_notes.sensitivity_allergies}</p>}
                   </Section>

@@ -68,7 +68,15 @@ async def export_cases(user: dict = Depends(require_roles(ROLE_ADMIN, ROLE_OWNER
 
 @router.get("/admin/export/payments.csv")
 async def export_payments(user: dict = Depends(require_roles(ROLE_ADMIN, ROLE_OWNER_DOCTOR))):
-    pays = await db.payments.find({}, {"_id": 0}).to_list(100000)
+    pays = await db.payments.find({"kind": {"$ne": "PACKAGE_BILL"}}, {"_id": 0}).to_list(100000)
+    async for package in db.packages.find({}, {"_id": 0}):
+        for t in package.get("transactions", []):
+            pays.append({**t, "case_id": t.get("case_id"), "amount_paid": t["amount_paise"] / 100,
+                         "total_amount": 0, "balance_amount": "", "package_id": package["id"],
+                         "package_uid": package["package_uid"], "treatment": package["treatment_name"],
+                         "package_amount": package["amount_paise"] / 100, "package_duration_months": package["duration_value"],
+                         "package_start": package["start_date"], "package_end": package["end_date"],
+                         "payment_status": t["kind"], "updated_at": t["created_at"]})
     rows = []
     for p in pays:
         c = await db.cases.find_one(
@@ -76,7 +84,7 @@ async def export_payments(user: dict = Depends(require_roles(ROLE_ADMIN, ROLE_OW
             {"_id": 0, "case_uid": 1, "patient_id": 1, "assigned_doctor_id": 1},
         )
         patient = await db.patients.find_one(
-            {"id": (c or {}).get("patient_id")},
+            {"id": p.get("patient_id") or (c or {}).get("patient_id")},
             {"_id": 0, "patient_uid": 1, "first_name": 1, "last_name": 1},
         )
         doctor = await db.doctor_profiles.find_one(
@@ -94,7 +102,8 @@ async def export_payments(user: dict = Depends(require_roles(ROLE_ADMIN, ROLE_OW
         rows,
         ["receipt_no", "case_uid", "patient_uid", "patient_name", "doctor", "consultation_amount",
          "medicine_amount", "total_amount", "amount_paid", "balance_amount", "payment_status",
-         "payment_mode", "medicines_taken", "created_at", "updated_at"],
+         "payment_mode", "medicines_taken", "created_at", "updated_at", "payment_date", "reference", "kind", "reason", "reverses_id",
+         "package_id", "package_uid", "treatment", "package_amount", "package_duration_months", "package_start", "package_end"],
         "sparsa-payments.csv",
     )
 

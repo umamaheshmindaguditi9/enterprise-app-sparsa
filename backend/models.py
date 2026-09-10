@@ -52,7 +52,33 @@ class CaseCreateIn(BaseModel):
     complaint_text: str
 
 
+class FamilyHistoryIn(BaseModel):
+    father: str = Field(default="", max_length=4000)
+    mother: str = Field(default="", max_length=4000)
+    paternal_grandfather: str = Field(default="", max_length=4000)
+    paternal_grandmother: str = Field(default="", max_length=4000)
+    maternal_grandfather: str = Field(default="", max_length=4000)
+    maternal_grandmother: str = Field(default="", max_length=4000)
+
+
+class PersonalHistoryIn(BaseModel):
+    appetite: str = Field(default="", max_length=4000)
+    thirst: str = Field(default="", max_length=4000)
+    bowels: str = Field(default="", max_length=4000)
+    urine: str = Field(default="", max_length=4000)
+    sleep: str = Field(default="", max_length=4000)
+    thermal: str = Field(default="", max_length=4000)
+
+
 class ClinicalNoteIn(BaseModel):
+    chief_complaint: str = Field(default="", max_length=10000)
+    presenting_complaint: str = Field(default="", max_length=10000)
+    past_history: str = Field(default="", max_length=10000)
+    family_history: FamilyHistoryIn = Field(default_factory=FamilyHistoryIn)
+    personal_history: PersonalHistoryIn = Field(default_factory=PersonalHistoryIn)
+    life_style: str = Field(default="", max_length=10000)
+    notes: str = Field(default="", max_length=10000)
+    # Legacy clients and historical imports remain supported. Omitted fields are never cleared.
     diagnosis_summary: Optional[str] = ""
     sensitivity_allergies: Optional[str] = ""
     safety_notes: Optional[str] = ""

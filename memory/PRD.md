@@ -151,6 +151,35 @@ Per Emergent support: appears only in the preview environment. Auto-removed on d
 - ~~**Mobile / tablet responsive pass**~~ (DONE 2026-07-20 — drawer sidebar, responsive padding, stacked case detail, larger touch targets).
 
 ## Next Action Items
+- **Current priority (2026-09-10):** Complete focused FIR photo registration tests and full package/notes/photo regression testing. Implementation was paused by the user before test-agent execution. Build/smoke/health checks are NOT full acceptance testing.
 - Replace `/app/frontend/public/logo.png` with a higher-res / SVG version anytime — the `<Logo />` component already loads from `/logo.png`.
 - Paste Twilio + WhatsApp keys via **/admin/messaging** (or backend/.env) to activate WhatsApp/SMS.
 - Schedule `/app/scripts/backup.sh` on the clinic server PC (cron / Task Scheduler) — see `/app/scripts/README.md`.
+
+## Change document implementation — code present, acceptance testing pending (2026-09-10)
+- User requested extending the existing app, not rebuilding, via `update or changes.txt` (35 parts). Approved 30-day Ending Soon and Reception/Admin photo management with doctor viewing. Full plan/inspection details: `/app/memory/CHANGE_REQUEST_PLAN.md`.
+- Added structured homeopathic notes (separate complaints/history/lifestyle/notes; paternal/maternal family fields and personal-history fields), partial updates preserving legacy fields, read-only history/safety display, and new note text in existing AI context. No legacy notes deleted or semantically inferred.
+- Added patient-owned photo references using existing private object storage and attachment metadata. Camera/file/mobile capture controls, JPEG compression, authenticated viewing, and shared profile/case photo display. No auth credential or auth implementation changes.
+- Added canonical treatment catalogue and distinct packages with month-based dates, stable contract snapshots, integer-paise balances, individually identified append-only receipts/reversals, duplicate-active guards, explicit renewals, package PRO dues/history/follow-ups, linked visit billing and report/CSV integration. Legacy visit bills remain unchanged in type; subsequent edits preserve previous snapshots. New startup indexes are additive; no patient or financial records migrated/deleted.
+- User paused before full workflow testing. Package list browser smoke passed and frontend/Python compilation passed. **Do not label these changes acceptance-complete.**
+
+## FIR registration photo addition — implemented, focused testing pending (2026-09-10)
+- Exact new request: “I would like the photo adding feature on new patient registration page as well(first information report) under reception as they are the first point of contact as soon as the patient enters the clinic for the first time. Attached the page for reference. Do not make any other changes just add this feature to this page.” User confirmed optional photo, capture/retake/upload before submission and shared patient-level storage.
+- Limited application edits for this follow-up to `frontend/src/pages/reception/NewPatient.jsx` and backward-compatible draft mode in `components/PatientPhotoEditor.jsx`. Added optional controls at the top of Patient Information; existing form fields/layout retained.
+- FIR creation still uses the existing endpoint. Once the patient/first visit exists, upload uses the existing patient-photo endpoint. If photo upload fails, the saved patient is retained, re-registration is disabled, and Reception can retry only the photo or continue without it. Draft photo processing and submission controls prevent accidental duplicate clicks.
+- Camera/file/mobile controls reuse the existing component, with normal existing-profile save mode preserved. No backend/schema changes for this follow-up.
+- Verification so far: frontend build passed (`test_reports/fir-photo-build.log`); authenticated Reception FIR browser smoke passed, photo controls and original inputs visible. User paused before registration/upload/retry end-to-end tests.
+
+## Deployment readiness health check (2026-09-10)
+- User explicitly requested the Deployment Agent health check. Result: **WARN — deployable from static/build checks; no blocking code/build configuration issues reported.** No application code/configuration changes made during this check.
+- Compilation, environment files, service/supervisor configuration, Mongo-only architecture and non-destructive/idempotent startup checks reported OK. External preview `/api/health` and `/login` both returned HTTP 200.
+- Non-blocking findings: external login-background asset URL; admin statistics N+1 doctor count queries; permissive CORS; React hook dependency/build warnings.
+- Full workflow verification remains pending for the latest features. Production environment was not tested or accessed; this check is not a deployment or a guarantee of full clinical/financial correctness.
+- Existing limitations remain: AI decision-support proxy timeout; clinical-reminder permissions issue previously paused; WhatsApp/SMS providers unconfigured. Health endpoint confirms both messaging providers disabled.
+- Report: `/app/test_reports/deployment_health_2026-09-10.md`.
+
+### Priorities after the health check
+- **P0:** Focused FIR tests: real photo upload, no-photo registration, camera denied/capture/retake, same photo in profile/case, failure retry without duplicate registration. Then package/payment/renewal and old-workflow regression tests before accepting the broader changes.
+- **P1:** Resolve known AI timeout in a separately approved change; review permissive CORS and the paused clinical-reminder data exposure.
+- **P2:** Existing N+1 optimisation, local login-background asset, messaging configuration and backup scheduling.
+- Suggested safeguard: maintain a short release checklist for registration, patient identity/photo and payment allocation.

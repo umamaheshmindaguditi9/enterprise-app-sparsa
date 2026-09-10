@@ -151,7 +151,7 @@ async def send_reminder_now(
 
 async def deliver_reminder(reminder: dict) -> None:
     """Attempt WhatsApp first, fall back to SMS. Mark SENT/FAILED."""
-    if reminder.get("status") == "COMPLETED":
+    if reminder.get("status") == "COMPLETED" or reminder.get("internal_only"):
         return
     patient = await db.patients.find_one({"id": reminder["patient_id"]})
     if not patient or not patient.get("phone"):
@@ -200,7 +200,7 @@ async def reminder_scheduler():
         try:
             await _maybe_refresh(db)
             now_iso = now_utc().isoformat()
-            cur = db.reminders.find({"status": "PENDING", "scheduled_at": {"$lte": now_iso}}).limit(20)
+            cur = db.reminders.find({"status": "PENDING", "internal_only": {"$ne": True}, "scheduled_at": {"$lte": now_iso}}).limit(20)
             async for r in cur:
                 await deliver_reminder(r)
         except Exception:

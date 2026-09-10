@@ -11,6 +11,7 @@ from core import (
 from models import UserCreateIn, UserUpdateIn, MessagingSettingsIn, AISettingsIn, AITestIn
 from messaging import refresh_messaging_cache, provider_status, provider_source
 from ai_settings import PROVIDERS, MODELS, KEY_FIELD, ai_settings_summary
+from financial_reporting import payment_aggregate
 
 router = APIRouter()
 
@@ -100,7 +101,7 @@ async def admin_stats(user: dict = Depends(require_roles(ROLE_ADMIN, ROLE_OWNER_
         {"$match": {"payment_status": "PAID"}},
         {"$group": {"_id": None, "total": {"$sum": "$amount_paid"}}},
     ]
-    rev = await db.payments.aggregate(pipeline).to_list(1)
+    rev = await payment_aggregate(pipeline).to_list(1)
     total_revenue = rev[0]["total"] if rev else 0
 
     return {

@@ -21,6 +21,8 @@ from messaging import provider_status, refresh_messaging_cache
 from seed import seed_all
 from routers import auth, patients, cases, pharmacy, payments, reminders, attachments, ai, exports, admin, dashboards
 from routers.reminders import reminder_scheduler
+from routers import packages, package_billing, patient_photos
+from package_service import init_package_indexes
 
 app = FastAPI(title="Sparsa Homeoclinic API")
 api = APIRouter(prefix="/api")
@@ -37,7 +39,7 @@ async def health():
 
 
 # Mount all domain routers under /api
-for r in (auth, patients, cases, pharmacy, payments, reminders, attachments, ai, exports, admin, dashboards):
+for r in (auth, patients, cases, pharmacy, payments, reminders, attachments, ai, exports, admin, dashboards, packages, package_billing, patient_photos):
     api.include_router(r.router)
 
 app.include_router(api)
@@ -106,6 +108,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(level
 
 @app.on_event("startup")
 async def on_startup():
+    await init_package_indexes()
     await seed_all()
     try:
         await refresh_messaging_cache(db)

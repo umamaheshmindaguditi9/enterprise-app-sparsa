@@ -27,6 +27,8 @@ import BillingDetail from "@/pages/pro/BillingDetail";
 import Receipt from "@/pages/pro/Receipt";
 import ProFinancialSearch from "@/pages/pro/FinancialSearch";
 import ProAnalytics from "@/pages/pro/Analytics";
+import Packages from "@/pages/pro/Packages";
+import PackageDetail from "@/pages/pro/PackageDetail";
 
 import AdminDashboard from "@/pages/admin/Dashboard";
 import AdminUsers from "@/pages/admin/Users";
@@ -85,6 +87,8 @@ export default function App() {
               <Route path="/pro" element={<RequireAuth roles={PRO_ROLES}><ProDashboard /></RequireAuth>} />
               <Route path="/pro/financial-search" element={<RequireAuth roles={PRO_ROLES}><ProFinancialSearch /></RequireAuth>} />
               <Route path="/pro/analytics" element={<RequireAuth roles={PRO_ROLES}><ProAnalytics /></RequireAuth>} />
+              <Route path="/pro/packages" element={<RequireAuth roles={PRO_ROLES}><Packages /></RequireAuth>} />
+              <Route path="/pro/packages/:id" element={<RequireAuth roles={PRO_ROLES}><PackageDetail /></RequireAuth>} />
               <Route path="/pro/cases/:id" element={<RequireAuth roles={PRO_ROLES}><BillingDetail /></RequireAuth>} />
 
               {/* Admin */}

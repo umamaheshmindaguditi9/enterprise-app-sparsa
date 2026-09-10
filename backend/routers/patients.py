@@ -9,6 +9,7 @@ from core import (
     STATUS_CLOSED,
 )
 from models import PatientIn, PastVisitIn, PatientUpdateIn, FIRPatientIn  # noqa: F401
+from package_service import package_bill_view
 
 
 def _compute_bmi(height_cm: float | None, weight_kg: float | None) -> float | None:
@@ -156,6 +157,8 @@ async def delete_patient(
     if not p:
         raise HTTPException(status_code=404, detail="Patient not found")
     case_count = await db.cases.count_documents({"patient_id": patient_id})
+    if await db.packages.find_one({"patient_id": patient_id}, {"_id": 0, "id": 1}):
+        raise HTTPException(409, "Patient has package/financial history and cannot be deleted")
     if case_count > 0 and user["role"] != ROLE_ADMIN:
         raise HTTPException(status_code=409, detail=f"Patient has {case_count} cases — only admin can delete patients with visit history")
     # Collect case_ids BEFORE deleting cases (otherwise cascade lookup returns empty).
@@ -170,6 +173,7 @@ async def delete_patient(
     await db.cases.delete_many({"patient_id": patient_id})
     await db.reminders.delete_many({"patient_id": patient_id})
     await db.patients.delete_one({"id": patient_id})
+    await db.attachments.update_many({"patient_id": patient_id, "kind": "PATIENT_PHOTO"}, {"$set": {"is_deleted": True}})
     await audit(user, "DELETE", "Patient", patient_id, {"patient_uid": p.get("patient_uid"), "cases_removed": case_count})
     return {"ok": True, "deleted_cases": case_count}
 
@@ -187,7 +191,7 @@ async def patient_timeline(patient_id: str, user: dict = Depends(get_current_use
     entries = []
     for c in cases:
         doctor = await db.doctor_profiles.find_one({"id": c["assigned_doctor_id"]}, {"_id": 0})
-        payment = await db.payments.find_one({"case_id": c["id"]}, {"_id": 0})
+        payment = await package_bill_view(await db.payments.find_one({"case_id": c["id"]}, {"_id": 0}))
         notes = None
         prescriptions = []
         if user["role"] in (ROLE_OWNER_DOCTOR, ROLE_DOCTOR, ROLE_ADMIN):

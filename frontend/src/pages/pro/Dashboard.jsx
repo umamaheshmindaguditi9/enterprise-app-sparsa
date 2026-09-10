@@ -34,13 +34,15 @@ export default function ProDashboard() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto" data-testid="pro-dashboard">
-      <div className="mb-8">
+      <div className="mb-8 flex flex-wrap justify-between items-center gap-3">
+        <div>
         <div className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1">Billing · PRO</div>
         <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">Today at the clinic</h1>
+        </div><Link to="/pro/packages" className="text-sm text-teal-700 font-medium border border-teal-200 rounded-md px-3 py-2 bg-white hover:bg-teal-50" data-testid="dashboard-package-dues">Packages & dues <ChevronRight size={14} className="inline" /></Link>
       </div>
 
       {/* KPI row */}
-      <div className="grid grid-cols-5 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-8">
         <KPI icon={IndianRupee} label="Revenue today" value={`₹${Number(stats.today_revenue).toFixed(0)}`} sub={`${stats.today_collections} collections`} accent="emerald" />
         <KPI icon={ReceiptText} label="Pending bills" value={stats.pending_billing_count} accent="amber" />
         <KPI icon={AlertCircle} label="Outstanding" value={`₹${Number(stats.outstanding_amount).toFixed(0)}`} sub={`${stats.outstanding_count} cases`} accent="rose" />
@@ -50,7 +52,7 @@ export default function ProDashboard() {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
         {/* Revenue trend */}
-        <div className="col-span-2 bg-white border border-gray-200 rounded-md p-5">
+        <div className="sm:col-span-2 min-w-0 bg-white border border-gray-200 rounded-md p-5">
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp size={15} strokeWidth={1.5} className="text-teal-700" />
             <h2 className="font-display text-sm font-semibold text-gray-900">7-day revenue trend</h2>
@@ -95,7 +97,7 @@ export default function ProDashboard() {
 
       {/* Two columns: billing queue + follow-ups today */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <div className="col-span-2 bg-white border border-gray-200 rounded-md">
+        <div className="sm:col-span-2 min-w-0 bg-white border border-gray-200 rounded-md">
           <div className="px-4 py-3 border-b border-gray-200 flex justify-between items-center">
             <h2 className="font-display text-sm font-semibold text-gray-900">Billing queue</h2>
             <span className="text-xs text-gray-500 tabular-nums">{cases.length}</span>

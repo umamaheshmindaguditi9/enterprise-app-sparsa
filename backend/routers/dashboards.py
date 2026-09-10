@@ -10,6 +10,7 @@ from core import (
 )
 
 router = APIRouter()
+from financial_reporting import payment_aggregate, total_contract_amount
 
 
 def _today_bounds_utc():
@@ -51,19 +52,19 @@ async def pro_dashboard(user: dict = Depends(require_roles(ROLE_PRO, ROLE_OWNER_
         {"$match": {"updated_at": {"$gte": start_iso, "$lt": end_iso}, "payment_status": "PAID"}},
         {"$group": {"_id": None, "total": {"$sum": "$amount_paid"}, "n": {"$sum": 1}}},
     ]
-    today_agg = await db.payments.aggregate(today_pipeline).to_list(1)
+    today_agg = await payment_aggregate(today_pipeline).to_list(1)
     today_revenue = today_agg[0]["total"] if today_agg else 0
     today_collections = today_agg[0]["n"] if today_agg else 0
 
     total_pipeline = [{"$match": {"payment_status": "PAID"}}, {"$group": {"_id": None, "total": {"$sum": "$amount_paid"}}}]
-    total_agg = await db.payments.aggregate(total_pipeline).to_list(1)
+    total_agg = await payment_aggregate(total_pipeline).to_list(1)
     total_revenue = total_agg[0]["total"] if total_agg else 0
 
     outstanding_pipeline = [
         {"$match": {"payment_status": {"$in": ["UNPAID", "PARTIAL"]}}},
         {"$group": {"_id": None, "total": {"$sum": "$balance_amount"}, "n": {"$sum": 1}}},
     ]
-    out_agg = await db.payments.aggregate(outstanding_pipeline).to_list(1)
+    out_agg = await payment_aggregate(outstanding_pipeline).to_list(1)
     outstanding_amount = out_agg[0]["total"] if out_agg else 0
     outstanding_count = out_agg[0]["n"] if out_agg else 0
 
@@ -77,7 +78,7 @@ async def pro_dashboard(user: dict = Depends(require_roles(ROLE_PRO, ROLE_OWNER_
         {"$match": {"updated_at": {"$gte": start_iso, "$lt": end_iso}, "payment_status": "PAID"}},
         {"$group": {"_id": "$payment_mode", "total": {"$sum": "$amount_paid"}}},
     ]
-    mode_agg = await db.payments.aggregate(mode_pipeline).to_list(20)
+    mode_agg = await payment_aggregate(mode_pipeline).to_list(20)
     by_mode_today = {(m["_id"] or "OTHER"): m["total"] for m in mode_agg}
 
     # 7-day revenue trend (IST days)
@@ -87,7 +88,7 @@ async def pro_dashboard(user: dict = Depends(require_roles(ROLE_PRO, ROLE_OWNER_
         day_ist = datetime.now(ist).replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=i)
         s = day_ist.astimezone(timezone.utc).isoformat()
         e = (day_ist + timedelta(days=1)).astimezone(timezone.utc).isoformat()
-        agg = await db.payments.aggregate([
+        agg = await payment_aggregate([
             {"$match": {"updated_at": {"$gte": s, "$lt": e}, "payment_status": "PAID"}},
             {"$group": {"_id": None, "total": {"$sum": "$amount_paid"}}},
         ]).to_list(1)
@@ -166,7 +167,7 @@ async def admin_analytics(user: dict = Depends(require_roles(ROLE_ADMIN, ROLE_OW
             }},
         }
     }
-    rev_buckets = await db.payments.aggregate([
+    rev_buckets = await payment_aggregate([
         {"$match": {"updated_at": {"$gte": start_30, "$lt": end_30}, "payment_status": "PAID"}},
         {"$group": {"_id": rev_ist_date_expr, "total": {"$sum": "$amount_paid"}}},
     ]).to_list(60)
@@ -320,31 +321,31 @@ async def pro_analytics(user: dict = Depends(require_roles(ROLE_PRO, ROLE_OWNER_
     cases_by_doctor_30d = [{"doctor": docs_map.get(b["_id"], b["_id"] or "Unassigned"), "count": b["count"]} for b in by_doctor_agg]
 
     # ── REVENUE METRICS ──────────────────────────────────────────────────
-    revenue_total_agg = await db.payments.aggregate([
+    revenue_total_agg = await payment_aggregate([
         {"$match": {"payment_status": "PAID"}},
         {"$group": {"_id": None, "billed": {"$sum": "$total_amount"}, "paid": {"$sum": "$amount_paid"}}},
     ]).to_list(1)
     rev_total = revenue_total_agg[0] if revenue_total_agg else {"billed": 0, "paid": 0}
 
-    revenue_today_agg = await db.payments.aggregate([
+    revenue_today_agg = await payment_aggregate([
         {"$match": {"updated_at": {"$gte": start_today, "$lt": end_today}, "payment_status": "PAID"}},
         {"$group": {"_id": None, "amount": {"$sum": "$amount_paid"}}},
     ]).to_list(1)
     revenue_today = revenue_today_agg[0]["amount"] if revenue_today_agg else 0
 
-    revenue_30d_agg = await db.payments.aggregate([
+    revenue_30d_agg = await payment_aggregate([
         {"$match": {"updated_at": {"$gte": start_30d}, "payment_status": "PAID"}},
         {"$group": {"_id": None, "amount": {"$sum": "$amount_paid"}}},
     ]).to_list(1)
     revenue_30d = revenue_30d_agg[0]["amount"] if revenue_30d_agg else 0
 
-    by_mode_30d = await db.payments.aggregate([
+    by_mode_30d = await payment_aggregate([
         {"$match": {"updated_at": {"$gte": start_30d}, "payment_status": {"$in": ["PAID", "PARTIAL"]}}},
         {"$group": {"_id": "$payment_mode", "amount": {"$sum": "$amount_paid"}, "n": {"$sum": 1}}},
     ]).to_list(10)
     mode_breakdown = [{"mode": a["_id"] or "UNKNOWN", "amount": a["amount"], "count": a["n"]} for a in by_mode_30d]
 
-    consult_med_split = await db.payments.aggregate([
+    consult_med_split = await payment_aggregate([
         {"$match": {"payment_status": {"$in": ["PAID", "PARTIAL"]}, "updated_at": {"$gte": start_30d}}},
         {"$group": {"_id": None,
                     "consultation": {"$sum": "$consultation_amount"},
@@ -362,7 +363,7 @@ async def pro_analytics(user: dict = Depends(require_roles(ROLE_PRO, ROLE_OWNER_
             "amount": {"$sum": "$amount_paid"},
         }},
     ]
-    rev_buckets = await db.payments.aggregate(revenue_trend_pipeline).to_list(60)
+    rev_buckets = await payment_aggregate(revenue_trend_pipeline).to_list(60)
     rev_map = {b["_id"]: b["amount"] for b in rev_buckets if b["_id"]}
     revenue_trend_30d = []
     for i in range(29, -1, -1):
@@ -391,7 +392,7 @@ async def pro_analytics(user: dict = Depends(require_roles(ROLE_PRO, ROLE_OWNER_
     closed_30d = t_agg[0]["n"] if t_agg else 0
 
     # ── FINANCIAL METRICS ────────────────────────────────────────────────
-    outstanding_agg = await db.payments.aggregate([
+    outstanding_agg = await payment_aggregate([
         {"$match": {"balance_amount": {"$gt": 0}}},
         {"$group": {"_id": None, "total": {"$sum": "$balance_amount"}, "n": {"$sum": 1}}},
     ]).to_list(1)
@@ -417,7 +418,7 @@ async def pro_analytics(user: dict = Depends(require_roles(ROLE_PRO, ROLE_OWNER_
             "by_doctor_30d": cases_by_doctor_30d,
         },
         "revenue_metrics": {
-            "total_billed": rev_total["billed"],
+            "total_billed": await total_contract_amount(),
             "total_paid": rev_total["paid"],
             "today": revenue_today,
             "last_30d": revenue_30d,

@@ -12,6 +12,7 @@ from core import (
 )
 from models import ParseNotesIn, AdvisoryIn
 import prompts
+from clinical_context import homeopathic_notes_text
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -142,6 +143,8 @@ async def ai_assist(
         system = prompts.case_decision_support()
         user_text = await _build_clinical_dossier(c, patient, note, latest_p)
 
+    if action in ("summarize", "advice"):
+        user_text += "\n" + homeopathic_notes_text(note)
     try:
         result = await _call_llm(system, user_text, f"case-{action}")
     except HTTPException:
@@ -203,12 +206,15 @@ async def _build_clinical_dossier(current_case: dict, patient: dict, current_not
             f"  Follow-up: {c.get('next_followup_date') or '—'}"
         )
 
+        lines.append(homeopathic_notes_text(n)[:2000])
+
     # Current visit block
     lines.append("")
     lines.append("=== CURRENT VISIT (today, awaiting decision) ===")
     lines.append(f"Case: {current_case.get('case_uid')} · type {current_case.get('visit_type') or '—'} · status {current_case.get('status')}")
     lines.append(f"Complaint: {current_case.get('complaint_text') or '—'}")
     if current_note:
+        lines.append(homeopathic_notes_text(current_note))
         lines.append(f"Working diagnosis: {current_note.get('diagnosis_summary') or '—'}")
         lines.append(f"Sensitivity/allergies: {current_note.get('sensitivity_allergies') or '—'}")
         lines.append(f"Safety notes: {current_note.get('safety_notes') or '—'}")
@@ -305,6 +311,7 @@ async def ai_visit_recap(
             f"  Rx given: {med_list[:300]}\n"
             f"  Follow-up date set: {c.get('next_followup_date') or '—'}"
         )
+        lines.append(homeopathic_notes_text(note)[:2000])
     narrative = "\n".join(lines)
 
     lang = patient.get("preferred_language", "EN")

@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { api, fmtErr } from "@/lib/api";
 import { Search, Loader2, IndianRupee, Phone, FileText, ChevronRight, AlertCircle } from "lucide-react";
+import { dateLabel, money } from "@/components/packages/PackageSummary";
 
 const fINR = (n) => `₹${Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 const PAY_PILLS = {
@@ -83,6 +84,7 @@ export default function FinancialSearch() {
                 <Metric label="Outstanding" value={fINR(r.outstanding)} negative={r.outstanding > 0} />
               </div>
             </div>
+            {r.packages?.length > 0 && <div className="px-5 py-3 border-b border-gray-100 space-y-2" data-testid={`financial-packages-${r.patient.id}`}>{r.packages.map(p => <div key={p.id} className="flex flex-wrap justify-between gap-2 text-sm"><Link to={`/pro/packages/${p.id}`} className="text-teal-700 font-medium" data-testid={`financial-package-link-${p.id}`}>{p.treatment_name} · {p.package_uid} · {p.duration_label}</Link><span className="text-gray-500" data-testid={`financial-package-end-${p.id}`}>Ends {dateLabel(p.end_date)}</span><span data-testid={`financial-package-balance-${p.id}`}>Paid {money(p.total_paid)} · Outstanding {money(p.outstanding)}</span></div>)}</div>}
             {r.visits.length > 0 ? (
               <div className="table-scroll"><table className="w-full text-sm">
                 <thead className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500">

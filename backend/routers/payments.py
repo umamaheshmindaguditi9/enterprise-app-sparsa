@@ -9,6 +9,7 @@ from core import (
     STATUS_CLOSED, STATUS_PARTIALLY_PAID, STATUS_PAYMENT_PENDING, STATUS_SENT_PHARMACY,
 )
 from models import PaymentIn
+from package_service import package_view, package_bill_view
 
 router = APIRouter()
 
@@ -34,10 +35,13 @@ async def financial_search(
         cases = await db.cases.find({"patient_id": p["id"]}, {"_id": 0}).sort("created_at", -1).to_list(100)
         case_ids = [c["id"] for c in cases]
         payments = await db.payments.find({"case_id": {"$in": case_ids}}, {"_id": 0}).to_list(200)
-        pay_by_case = {pay["case_id"]: pay for pay in payments}
-        total_billed = sum(pay.get("total_amount", 0) for pay in payments)
-        total_paid = sum(pay.get("amount_paid", 0) for pay in payments)
-        outstanding = sum(pay.get("balance_amount", 0) for pay in payments)
+        pay_by_case = {pay["case_id"]: await package_bill_view(pay) for pay in payments}
+        legacy = [pay for pay in payments if pay.get("kind") != "PACKAGE_BILL"]
+        package_records = await db.packages.find({"patient_id": p["id"]}, {"_id": 0}).sort("start_date", -1).to_list(None)
+        patient_packages = [package_view(pkg) for pkg in package_records]
+        total_billed = sum(pay.get("total_amount", 0) for pay in legacy) + sum(pkg["amount"] for pkg in patient_packages)
+        total_paid = sum(pay.get("amount_paid", 0) for pay in legacy) + sum(pkg["total_paid"] for pkg in patient_packages)
+        outstanding = sum(pay.get("balance_amount", 0) for pay in legacy) + sum(pkg["outstanding"] for pkg in patient_packages)
         visits = []
         for c in cases[:30]:
             pay = pay_by_case.get(c["id"]) or {}
@@ -61,6 +65,7 @@ async def financial_search(
             "outstanding": outstanding,
             "visits_count": len(cases),
             "visits": visits,
+            "packages": patient_packages,
         })
     return {"results": results, "count": len(results)}
 
@@ -71,7 +76,12 @@ async def save_payment(
     payload: PaymentIn,
     user: dict = Depends(require_roles(ROLE_PRO, ROLE_OWNER_DOCTOR, ROLE_ADMIN)),
 ):
-    await load_case_for_user(case_id, user)
+    c = await load_case_for_user(case_id, user)
+    if c.get("package_id") or c.get("billing_kind") == "PACKAGE":
+        raise HTTPException(409, "This is a package visit. Record individual payments against its package, not cumulative bill totals.")
+    claimed = await db.cases.update_one({"id": case_id, "package_id": None, "billing_kind": {"$ne": "PACKAGE"}}, {"$set": {"billing_kind": "LEGACY"}})
+    if not claimed.matched_count:
+        raise HTTPException(409, "Billing allocation changed. Please refresh.")
     medicine_amount = payload.medicine_amount if payload.medicines_taken else 0
     total = payload.consultation_amount + medicine_amount
     balance = max(0, total - payload.amount_paid)
@@ -82,7 +92,7 @@ async def save_payment(
     else:
         pstatus = "UNPAID"
 
-    existing = await db.payments.find_one({"case_id": case_id})
+    existing = await db.payments.find_one({"case_id": case_id}, {"_id": 0})
     receipt_no = existing["receipt_no"] if existing else f"SPH-RC-{await next_counter('receipt_no'):06d}"
 
     doc = {
@@ -101,7 +111,8 @@ async def save_payment(
     }
     await db.payments.update_one(
         {"case_id": case_id},
-        {"$set": doc, "$setOnInsert": {"created_at": now_utc().isoformat()}},
+        {"$set": doc, "$setOnInsert": {"created_at": now_utc().isoformat()},
+         "$push": {"history": {"previous": {k: v for k, v in (existing or {}).items() if k != "history"}, "amount_paid": payload.amount_paid, "changed_by": user["id"], "changed_at": now_utc().isoformat()}}},
         upsert=True,
     )
     # New workflow: after PRO finalises payment, the case forwards to Pharmacy if medicines

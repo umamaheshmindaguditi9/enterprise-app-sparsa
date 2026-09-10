@@ -19,12 +19,15 @@ const NAV_BY_ROLE = {
     { to: "/admin/exports", label: "Exports", icon: FileDown },
     { to: "/admin/messaging", label: "Messaging", icon: MessageSquare },
     { to: "/admin/ai", label: "AI Settings", icon: Sparkles },
+    { to: "/reception/patients", label: "Patients", icon: Users },
+    { to: "/pro/packages", label: "Packages & Dues", icon: ClipboardList },
   ],
   OWNER_DOCTOR: [
     { to: "/doctor", label: "My Queue", icon: LayoutDashboard, end: true },
     { to: "/doctor/all", label: "All Cases", icon: FileText },
     { to: "/doctor/patients", label: "Patients", icon: Users },
     { to: "/doctor/reminders", label: "Reminders", icon: ClipboardList },
+    { to: "/pro/packages", label: "Packages & Dues", icon: ClipboardList },
   ],
   DOCTOR: [
     { to: "/doctor", label: "My Queue", icon: LayoutDashboard, end: true },
@@ -42,6 +45,7 @@ const NAV_BY_ROLE = {
   ],
   PRO: [
     { to: "/pro", label: "Billing Queue", icon: ReceiptText, end: true },
+    { to: "/pro/packages", label: "Packages & Dues", icon: ClipboardList },
     { to: "/pro/financial-search", label: "Financial Search", icon: Users },
     { to: "/pro/analytics", label: "Analytics", icon: FileText },
   ],

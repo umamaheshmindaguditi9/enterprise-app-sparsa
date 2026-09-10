@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import Logo from "@/components/Logo";
 import { Printer } from "lucide-react";
+import { PackageSummary, money, dateLabel } from "@/components/packages/PackageSummary";
 
 export default function Receipt() {
   const { id } = useParams();
@@ -46,10 +47,11 @@ export default function Receipt() {
           <div className="text-xs uppercase tracking-wider text-gray-500 mb-1">Patient</div>
           <div className="font-semibold">{c.patient?.first_name} {c.patient?.last_name}</div>
           <div className="text-xs text-gray-600 tabular-nums">{c.patient?.patient_uid} · {c.patient?.phone}</div>
+          {p.package_snapshot && <div className="mt-3"><PackageSummary value={p.package_snapshot} prefix="receipt-package-snapshot" compact /></div>}
           <div className="text-xs text-gray-600 mt-1">Doctor: {c.doctor?.display_name}</div>
         </div>
 
-        <div className="border-t border-dashed border-gray-300 pt-3 mb-3">
+        {p.kind === "PACKAGE_BILL" ? <div className="border-t border-dashed border-gray-300 pt-3 mb-3" data-testid="receipt-package-payments"><div className="font-semibold text-xs mb-3">Payments on this visit</div>{p.package_transactions?.length ? p.package_transactions.map(t => <div className="py-2 border-b text-xs" key={t.id} data-testid={`receipt-transaction-${t.id}`}><div className="flex justify-between gap-2"><span>{dateLabel(t.payment_date)} · {t.payment_mode}</span><strong>{money(t.amount)}</strong></div><div>{t.receipt_no} · {t.reference || t.kind}</div></div>) : <p className="text-xs" data-testid="receipt-no-payment">No payment received on this visit.</p>}<div className="mt-3"><Row label="Visit payments" value={p.amount_paid} /><Row label="Package total paid" value={p.package.total_paid} /><Row label="Package outstanding" value={p.package.outstanding} bold /></div></div> : <div className="border-t border-dashed border-gray-300 pt-3 mb-3">
           <Row label="Consultation" labelTe="వైద్య సలహా" value={p.consultation_amount} showTe={isTelugu} />
           {p.medicines_taken && <Row label="Medicines" labelTe="మందులు" value={p.medicine_amount} showTe={isTelugu} />}
           <div className="border-t border-gray-300 my-2" />
@@ -62,7 +64,7 @@ export default function Receipt() {
           <div className="flex justify-between text-xs">
             <span>Status</span><span className="font-semibold">{p.payment_status}</span>
           </div>
-        </div>
+        </div>}
 
         <div className="text-center text-[11px] text-gray-500 mt-4 leading-relaxed">
           Thank you for visiting Sparsa Homeo Care.<br />

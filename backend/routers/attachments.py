@@ -90,6 +90,8 @@ async def download_attachment(attachment_id: str, user: dict = Depends(get_curre
     rec = await db.attachments.find_one({"id": attachment_id, "is_deleted": False}, {"_id": 0})
     if not rec:
         raise HTTPException(status_code=404, detail="Not found")
+    if rec.get("kind") == "PATIENT_PHOTO":
+        raise HTTPException(status_code=404, detail="Use the patient photo endpoint")
     await load_case_for_user(rec["case_id"], user)  # access check
     try:
         data, ctype = get_object(rec["storage_path"])
@@ -111,6 +113,8 @@ async def delete_attachment(
     rec = await db.attachments.find_one({"id": attachment_id, "is_deleted": False})
     if not rec:
         raise HTTPException(status_code=404, detail="Not found")
+    if rec.get("kind") == "PATIENT_PHOTO":
+        raise HTTPException(status_code=404, detail="Patient photos are managed from the patient profile")
     await load_case_for_user(rec["case_id"], user)
     await db.attachments.update_one(
         {"id": attachment_id},
