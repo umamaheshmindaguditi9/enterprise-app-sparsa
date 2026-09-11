@@ -1,0 +1,71 @@
+{
+  "summary": "Executed backend+frontend regression focused on FIR photo upload/retry and package/payment guards on preview URL. Backend core workflows passed (24/26 tests), with two auth-security playbook failures. FIR UI flows passed for no-auto-camera-on-load, retry-after-503, continue-without-photo, invalid/oversize file validation, and mobile capture attribute. PRO package create/payment UI works when awaited correctly; payment sync updates remaining and ledger after refresh delay.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "/api/auth/login",
+        "issue": "No brute-force lockout: 6th invalid login still returns 401 instead of expected 429/rate-limit.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "CORS preflight (/api/auth/me)",
+        "issue": "access-control-allow-origin reflects cluster preview origin, not frontend/.env emergentagent origin; explicit-origin assertion failed in playbook test."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "PatientPhotoEditor camera capture",
+        "issue": "Immediate capture after camera start intermittently shows 'Camera is starting. Please try capturing again.'; requires retry.",
+        "selector": "[data-testid='photo-capture']",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Camera permission-denied branch",
+        "issue": "Could not reliably force NotAllowedError in this automation runtime; environment provides synthetic media stream, so denied-path remains partially unverified.",
+        "affected_selectors": [
+          "[data-testid='photo-start-camera']",
+          "[data-testid='photo-error']"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_fir_photo_registration_flow.py",
+    "/app/backend/tests/test_iteration12_req35_packages_notes_photos.py",
+    "/app/backend/tests/test_iteration13_financial_guards.py",
+    "/app/test_reports/pytest/iteration13_backend_regression.xml",
+    "/app/test_reports/pytest/iteration13_financial_guards.xml"
+  ],
+  "action_items": [
+    "Implement and verify login brute-force protection (lockout/rate-limit after repeated failures).",
+    "Align CORS explicit origin policy with intended public frontend origin(s) for credentialed requests.",
+    "Re-test camera permission-denied path on a device/browser where getUserMedia denial can be reliably simulated or manually denied.",
+    "Add or restore /app/auth_testing.md playbook doc reference (file missing in this workspace run)."
+  ],
+  "critical_code_review_comments": [
+    "server.py currently falls back to allow_origin_regex='.*' with allow_credentials=True when CORS_ALLOWED_ORIGINS is unset; tighten for clinical deployment.",
+    "Auth router has no failed-attempt tracking/lockout logic; this was already listed in PRD backlog and remains open.",
+    "Package/payment backend atomic guards are strong: concurrent overpay and concurrent duplicate-active creation were blocked as expected in new pytest coverage."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration13_financial_guards.py",
+    "/app/test_reports/iteration_12.json"
+  ],
+  "success_rate": {
+    "backend": "92% (24/26)",
+    "frontend": "70% (critical FIR/package flows mostly passed; camera-denial simulation partially blocked by runtime)"
+  },
+  "test_credentials": "Used /app/memory/test_credentials.md seeded accounts: reception1, hemanth, jyothi, pro1, pharmacy1, admin1 / Password@123.",
+  "seed_data_creation": "Created synthetic REGTEST_FIR_* patients and REGTEST_I13_*/REGTEST_UI_* package+treatment records only; no existing real records modified/deleted.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Key synthetic IDs observed: SPARSA-000088 (patient created in FIR retry tests), package PKG-000028 (id 82e768aa-b503-4968-ba27-0953b0dcca9e) used for payment sync checks. FIR retry interception verified single registration per submission attempt in UI script context; backend test suites already cover FIR/photo RBAC and package/payment atomic guards. Remaining broad scope (full billing alternate-status bypass, reversal UI concurrency, full exports/analytics deltas, complete D→PRO→Pharmacy synthetic record chain) still needs dedicated passes.",
+  "rca of the issue": "Auth failures RCA: (1) /api/auth/login implements credential check only and returns 401 on bad password without attempt counters; hence no 429 lockout. (2) CORS RCA: server.py uses permissive regex fallback when CORS_ALLOWED_ORIGINS is unset, so allow-origin value tracks current host (cluster preview) and can diverge from frontend/.env base origin assertions. Camera-denial verification gap RCA: automation environment supplies synthetic/fake media stream, preventing consistent NotAllowedError reproduction."
+}
