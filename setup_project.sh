@@ -102,5 +102,4 @@ Next steps:
        npm start
 
 If you want to run the backend directly without activation:
-  .venv/bin/uvicorn backend.server:app --reload --host 0.0.0.0 --port 8000
-EOF
+  .venv/bin/uvicorn backend.server:app --reload --host 0.0.0.0 --port 8000  
