@@ -1,0 +1,54 @@
+yarn run v1.22.22
+$ craco build
+Creating an optimized production build...
+Browserslist: browsers data (caniuse-lite) is 9 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+Browserslist: browsers data (caniuse-lite) is 9 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+Compiled with warnings.
+
+[eslint] 
+src/components/AttachmentsTab.jsx
+  Line 20:32:  React Hook useEffect has a missing dependency: 'load'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src/components/packages/PackageBilling.jsx
+  Line 18:64:  React Hook useEffect has a missing dependency: 'load'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src/pages/doctor/CaseDetail.jsx
+  Line 38:34:  React Hook useEffect has a missing dependency: 'reload'. Either include it or remove the dependency array                                                                                                                                                    react-hooks/exhaustive-deps
+  Line 203:6:  React Hook useEffect has missing dependencies: 'draft' and 'onDraftConsumed'. Either include them or remove the dependency array. If 'onDraftConsumed' changes too often, find the parent component that defines it and wrap that definition in useCallback  react-hooks/exhaustive-deps
+
+src/pages/pharmacy/CaseDetail.jsx
+  Line 28:34:  React Hook useEffect has a missing dependency: 'reload'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src/pages/pro/BillingDetail.jsx
+  Line 46:34:   React Hook useEffect has a missing dependency: 'reload'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  Line 237:32:  React Hook useEffect has a missing dependency: 'load'. Either include it or remove the dependency array    react-hooks/exhaustive-deps
+
+src/pages/pro/PackageDetail.jsx
+  Line 21:113:  React Hook useEffect has a missing dependency: 'load'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+Search for the keywords to learn more about each warning.
+To ignore, add // eslint-disable-next-line to the line before.
+
+File sizes after gzip:
+
+  226.04 kB (+364 B)  build/static/js/main.ffe8b53e.js
+  13.18 kB (+3 B)     build/static/css/main.5c27c8f3.css
+
+The project was built assuming it is hosted at /.
+You can control this with the homepage field in your package.json.
+
+The build folder is ready to be deployed.
+You may serve it with a static server:
+
+  yarn global add serve
+  serve -s build
+
+Find out more about deployment here:
+
+  https://cra.link/deployment
+
+Done in 11.32s.
