@@ -5,6 +5,16 @@ import { ArrowLeft, Loader2, Sparkles, Save, Plus, Trash2, FileText, Wand2 } fro
 import { FIRFields, EMPTY_FIR } from "@/components/FIRFields";
 import { PatientPhotoEditor } from "@/components/PatientPhotoEditor";
 import { useAuth } from "@/contexts/AuthContext";
+import { Textarea } from "@/components/ui/textarea";
+
+// Exact existing Patient Case field paths/labels and limits; Doctor form remains untouched.
+const CLINICAL_GROUPS = [
+  { title: "Clinical Information", fields: [["chief_complaint", "Chief Complaint"], ["presenting_complaint", "Presenting Complaint"]] },
+  { title: "Past History", fields: [["past_history", "Past History"]] },
+  { title: "Family History", section: "family_history", fields: [["father", "Father"], ["mother", "Mother"], ["paternal_grandfather", "Paternal Grandfather"], ["paternal_grandmother", "Paternal Grandmother"], ["maternal_grandfather", "Maternal Grandfather"], ["maternal_grandmother", "Maternal Grandmother"]] },
+  { title: "Personal History", section: "personal_history", fields: [["appetite", "Appetite"], ["thirst", "Thirst"], ["bowels", "Bowels"], ["urine", "Urine"], ["sleep", "Sleep"], ["thermal", "Thermal"]] },
+];
+const EMPTY_CLINICAL = { chief_complaint: "", presenting_complaint: "", past_history: "", family_history: {}, personal_history: {}, life_style: "", notes: "" };
 
 const EMPTY_ITEM = { medicine_name: "", potency: "", dosage: "", frequency: "", duration_days: "", instructions: "" };
 const withKey = (it) => ({
@@ -17,6 +27,7 @@ export default function PastVisitForm() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [fir, setFir] = useState(EMPTY_FIR);
+  const [clinical, setClinical] = useState(EMPTY_CLINICAL);
   const [photo, setPhoto] = useState(null), [photoPreparing, setPhotoPreparing] = useState(false);
   const [savedCase, setSavedCase] = useState(null), [photoError, setPhotoError] = useState("");
   const submitting = useRef(false);
@@ -33,10 +44,6 @@ export default function PastVisitForm() {
   const today = new Date().toISOString().slice(0, 10);
   const [form, setForm] = useState({
     visit_date: today,
-    diagnosis_summary: "",
-    sensitivity_allergies: "",
-    suggestions: "",
-    additional_info: "",
     items: [withKey({ ...EMPTY_ITEM })],
     notes_for_patient: "",
     consultation_amount: 0,
@@ -72,16 +79,17 @@ export default function PastVisitForm() {
     if (!pasteText.trim()) return;
     setParsing(true); setParseMsg(""); setErr("");
     try {
-      const { data } = await api.post("/ai/parse-visit-notes", { text: pasteText, hint_doctor_id: fir.consulting_doctor_id || null });
+      const { data } = await api.post("/ai/parse-visit-notes", { text: pasteText, hint_doctor_id: fir.consulting_doctor_id || null, include_clinical_notes: true });
       const d = data.draft || {};
       setFir(f => ({ ...f, ...(d.fir || {}), chief_complaint: d.fir?.chief_complaint || d.complaint_text || f.chief_complaint }));
+      const draftNotes = d.clinical_notes || {};
+      setClinical(current => ({ ...current, ...draftNotes,
+        family_history: { ...current.family_history, ...(draftNotes.family_history || {}) },
+        personal_history: { ...current.personal_history, ...(draftNotes.personal_history || {}) },
+      }));
       setForm((f) => ({
         ...f,
         visit_date: d.visit_date || f.visit_date,
-        diagnosis_summary: d.diagnosis_summary || f.diagnosis_summary,
-        sensitivity_allergies: d.sensitivity_allergies || f.sensitivity_allergies,
-        suggestions: d.suggestions || f.suggestions,
-        additional_info: d.additional_info || f.additional_info,
         notes_for_patient: d.notes_for_patient || f.notes_for_patient,
         items: (d.prescription_items || []).length
           ? d.prescription_items.map((it) => withKey({
@@ -138,10 +146,7 @@ export default function PastVisitForm() {
         complaint_text: fir.chief_complaint,
         fir_snapshot: { ...fir, age: Number(fir.age), height_cm: h, weight_kg: w,
           referral_name: fir.sources.some(s => ["REFERRAL", "OTHERS"].includes(s)) ? (fir.referral_name || null) : null },
-        diagnosis_summary: form.diagnosis_summary,
-        sensitivity_allergies: form.sensitivity_allergies,
-        suggestions: form.suggestions,
-        additional_info: form.additional_info,
+        clinical_notes: clinical,
         prescription_items: form.items
           .filter((it) => it.medicine_name)
           .map(({ _key, ...it }) => ({ ...it, duration_days: it.duration_days ? Number(it.duration_days) : null })),
@@ -216,13 +221,7 @@ export default function PastVisitForm() {
         <FIRFields form={fir} onChange={setFir} doctors={doctors} photoSlot={["RECEPTION", "ADMIN"].includes(user?.role) && <PatientPhotoEditor onDraftChange={setPhoto} onProcessingChange={setPhotoPreparing} disabled={busy || parsing || !!savedCase} />} />
 
         <div className="bg-white border border-gray-200 rounded-md p-6 space-y-5">
-        <h2 className="font-display text-base font-semibold">Historical clinical notes</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Diagnosis"><textarea rows={2} className="input" value={form.diagnosis_summary} onChange={(e) => setForm({ ...form, diagnosis_summary: e.target.value })} data-testid="diagnosis-input" /></Field>
-          <Field label="Allergies"><textarea rows={2} className="input" value={form.sensitivity_allergies} onChange={(e) => setForm({ ...form, sensitivity_allergies: e.target.value })} data-testid="past-allergies" /></Field>
-          <Field label="Suggestions"><textarea rows={2} className="input" value={form.suggestions} onChange={(e) => setForm({ ...form, suggestions: e.target.value })} data-testid="past-suggestions" /></Field>
-          <Field label="Additional info"><textarea rows={2} className="input" value={form.additional_info} onChange={(e) => setForm({ ...form, additional_info: e.target.value })} data-testid="past-additional-info" /></Field>
-        </div>
+        <HistoricalClinicalFields value={clinical} onChange={setClinical} />
 
         {/* Medicines */}
         <div>
@@ -293,4 +292,22 @@ function Field({ label, required, children }) {
       {children}
     </div>
   );
+}
+
+function HistoricalClinicalFields({ value, onChange }) {
+  const field = (key, label, section) => {
+    const path = section ? `${section}.${key}` : key;
+    const controlId = `past-clinical-${path.replaceAll("_", "-").replaceAll(".", "-")}`;
+    return <div key={key} className="min-w-0">
+      <label htmlFor={controlId} className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
+      <Textarea id={controlId} name={path} data-testid={controlId} rows={section ? 2 : 3} maxLength={section ? 4000 : 10000} className="bg-white resize-y"
+        value={(section ? value[section]?.[key] : value[key]) || ""}
+        onChange={e => onChange(current => section ? { ...current, [section]: { ...current[section], [key]: e.target.value } } : { ...current, [key]: e.target.value })} />
+    </div>;
+  };
+  return <div className="space-y-7" data-testid="past-clinical-fields">{CLINICAL_GROUPS.map(({ title, section, fields }) => <fieldset key={title} className="border-t border-gray-200 pt-5">
+    <legend className="font-display font-semibold text-base text-teal-800 pr-3">{title}</legend>
+    <div className={`grid gap-4 ${section === "personal_history" ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2"}`}>{fields.map(([key, label]) => field(key, label, section))}</div>
+    {section === "personal_history" && <div className="grid md:grid-cols-2 gap-5 mt-5">{field("life_style", "Life Style")}{field("notes", "Notes")}</div>}
+  </fieldset>)}</div>;
 }

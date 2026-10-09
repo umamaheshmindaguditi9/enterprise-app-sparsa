@@ -365,7 +365,9 @@ async def create_past_visit(
     await db.cases.insert_one(case_doc)
     case_doc.pop("_id", None)
 
-    if any([
+    structured_notes = payload.clinical_notes.model_dump(exclude_unset=True) if payload.clinical_notes else {}
+    has_structured_notes = any(any(v.values()) if isinstance(v, dict) else v for v in structured_notes.values())
+    if has_structured_notes or any([
         payload.diagnosis_summary, payload.sensitivity_allergies, payload.safety_notes,
         payload.suggestions, payload.additional_info,
     ]):
@@ -376,6 +378,7 @@ async def create_past_visit(
             "safety_notes": payload.safety_notes or "",
             "suggestions": payload.suggestions or "",
             "additional_info": payload.additional_info or "",
+            **structured_notes,
             "created_by": user["id"],
             "created_at": visit_iso,
             "updated_by": user["id"],

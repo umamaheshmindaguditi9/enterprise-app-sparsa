@@ -187,6 +187,7 @@ class PastVisitIn(BaseModel):
     complaint_text: str
     # Same FIR contract; optional so existing historical-entry clients remain compatible.
     fir_snapshot: Optional[FIRPatientIn] = None
+    clinical_notes: Optional[ClinicalNoteIn] = None
     diagnosis_summary: Optional[str] = ""
     sensitivity_allergies: Optional[str] = ""
     safety_notes: Optional[str] = ""
@@ -205,6 +206,7 @@ class ParseNotesIn(BaseModel):
     """Paste from Google Docs / paper transcripts."""
     text: str
     hint_doctor_id: Optional[str] = None
+    include_clinical_notes: bool = False
 
 
 class AdvisoryIn(BaseModel):
