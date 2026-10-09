@@ -10,6 +10,8 @@ User-facing content (`user_text`) is still composed inside routers/ai.py because
 it depends on live DB data; only the static, English instruction blocks live here.
 """
 from __future__ import annotations
+import json
+from models import FIRPatientIn
 
 
 def case_summarize() -> str:
@@ -321,7 +323,18 @@ def parse_visit_notes() -> str:
         '   "consultation_amount": number or null,\n'
         '   "medicine_amount": number or null,\n'
         '   "amount_paid": number or null,\n'
-        '   "payment_mode": "CASH"|"PHONEPE"|"CARD"|"OTHER"|null}\n'
+        '   "payment_mode": "CASH"|"PHONEPE"|"CARD"|"OTHER"|null,\n'
+        '   "fir": {}}\n'
+        "The fir object uses the existing First Information Report fields only. Extract explicitly stated "
+        "patient/visit details using this JSON schema (omit missing fir properties instead of filling defaults):\n"
+        + json.dumps(FIRPatientIn.model_json_schema()) + "\n"
+        "Map patient first/last name, gender, age at the historical visit, marital_status, phone, address, "
+        "preferred_language (EN/TE), height_cm, weight_kg, sources (enum list), referral_name, "
+        "chief_complaint, visit_type (WALK_IN/APPOINTMENT), and consulting_doctor_id. "
+        "Only use consulting_doctor_id from the roster appended below when the doctor is explicitly identifiable "
+        "in the note; do not guess from the hint. Do not invent IDs, photos, BMI or patient demographics. "
+        "fir.chief_complaint and complaint_text must describe the same complaint. "
+        "Unknown fields remain omitted; never replace missing amounts with zero. "
         "Rules: (a) use empty string '' for missing strings, empty list for missing list, null for missing numbers/dates. "
         "(b) Do NOT invent medicines or diagnoses. Leave empty if unclear. "
         "(c) For potency normalize to formats like '30C', '200C', '1M', 'Q', '6X'. "

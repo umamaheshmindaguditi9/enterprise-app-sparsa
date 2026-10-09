@@ -5,10 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Search, ChevronRight, ChevronLeft, Loader2 } from "lucide-react";
 import { PackageForm } from "@/components/packages/PackageForm";
+import { useAuth } from "@/contexts/AuthContext";
 import { money, dateLabel, label, PackageStatus } from "@/components/packages/PackageSummary";
 
 const FILTERS = ["ALL", "OUTSTANDING", "PARTIALLY_PAID", "FULLY_PAID", "ENDING_SOON", "EXPIRED", "RENEWAL_DUE"];
 export default function Packages() {
+  const { user } = useAuth();
+  const readOnly = user?.role === "DOCTOR";
   const [params] = useSearchParams();
   const [q, setQ] = useState(""), [filter, setFilter] = useState("ALL"), [page, setPage] = useState(1), [refresh, setRefresh] = useState(0);
   const [result, setResult] = useState(null), [error, setError] = useState(""), [loading, setLoading] = useState(false), [creating, setCreating] = useState(false);
@@ -25,7 +28,7 @@ export default function Packages() {
     return () => { live = false; clearTimeout(timer); };
   }, [patientSearch]);
   return <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6" data-testid="packages-page">
-    <header className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs text-gray-500 uppercase font-semibold mb-1">PRO · Package follow-up</p><h1 className="font-display text-2xl sm:text-3xl font-semibold">Packages & dues</h1></div><Button onClick={() => { setCreating(v => !v); setSelected(null); }} className="bg-teal-700 hover:bg-teal-800" data-testid="new-package-button"><Plus size={16} />New package</Button></header>
+    <header className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs text-gray-500 uppercase font-semibold mb-1" data-testid="packages-access-scope">{readOnly ? "My patients · Read only" : "PRO · Package follow-up"}</p><h1 className="font-display text-2xl sm:text-3xl font-semibold">Packages & dues</h1></div>{!readOnly && <Button onClick={() => { setCreating(v => !v); setSelected(null); }} className="bg-teal-700 hover:bg-teal-800" data-testid="new-package-button"><Plus size={16} />New package</Button>}</header>
     {creating && <section className="max-w-2xl" data-testid="package-create-section">{!selected ? <><label className="text-sm font-medium">Patient<Input placeholder="Name, SPARSA ID or phone" value={patientSearch} onChange={e => setPatientSearch(e.target.value)} className="mt-2" data-testid="package-patient-search" /></label><div className="divide-y">{patients.map(p => <button key={p.id} onClick={() => setSelected(p)} className="w-full text-left p-3 hover:bg-teal-50 text-sm" data-testid={`select-package-patient-${p.id}`}>{p.first_name} {p.last_name} · {p.patient_uid}</button>)}</div><Button variant="ghost" onClick={() => setCreating(false)} data-testid="cancel-package-patient-search">Cancel</Button></> : <><div className="flex flex-wrap items-center justify-between text-sm py-3"><span data-testid="selected-package-patient">{selected.first_name} {selected.last_name} · {selected.patient_uid}</span><Button variant="ghost" onClick={() => setSelected(null)} data-testid="change-package-patient">Change patient</Button></div><PackageForm patientId={selected.id} onSaved={() => { setCreating(false); setRefresh(v => v + 1); }} onCancel={() => setCreating(false)} /></>}</section>}
     {result && <div className="grid sm:grid-cols-3 gap-5 border-y border-gray-200 py-5">{[["amount", "Package value"], ["paid", "Received"], ["outstanding", "Outstanding"]].map(([k, title]) => <div key={k}><div className="text-xs uppercase font-semibold text-gray-500">{title}</div><div className={`font-display text-2xl mt-1 tabular-nums ${k === "outstanding" ? "text-rose-700" : "text-gray-900"}`} data-testid={`package-total-${k}`}>{money(result.summary[k])}</div></div>)}</div>}
     <div className="flex flex-wrap gap-3"><div className="relative flex-1 min-w-0"><Search size={16} className="absolute left-3 top-3 text-gray-400" /><Input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder="Patient, SPARSA ID, treatment or package" className="pl-9" data-testid="package-search" /></div><select value={filter} onChange={e => { setFilter(e.target.value); setPage(1); }} className="bg-white rounded-md border px-3 py-2 text-sm" data-testid="package-filter">{FILTERS.map(f => <option key={f} value={f}>{label(f)}</option>)}</select></div>

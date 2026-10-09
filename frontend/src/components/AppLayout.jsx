@@ -32,6 +32,7 @@ const NAV_BY_ROLE = {
   DOCTOR: [
     { to: "/doctor", label: "My Queue", icon: LayoutDashboard, end: true },
     { to: "/doctor/patients", label: "My Patients", icon: Users },
+    { to: "/pro/packages", label: "Packages & Dues", icon: ClipboardList },
     { to: "/doctor/reminders", label: "Reminders", icon: ClipboardList },
   ],
   RECEPTION: [

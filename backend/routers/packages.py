@@ -5,7 +5,8 @@ from datetime import date, datetime, time, timedelta, timezone
 from dateutil.relativedelta import relativedelta
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pymongo.errors import DuplicateKeyError
-from core import db, require_roles, audit, now_utc, ROLE_PRO, ROLE_OWNER_DOCTOR, ROLE_ADMIN
+from core import db, require_roles, audit, now_utc, ROLE_PRO, ROLE_OWNER_DOCTOR, ROLE_ADMIN, ROLE_DOCTOR
+from patient_access import financial_patient_ids, require_financial_patient
 from package_models import (TreatmentIn, PackageIn, RenewalIn, PackagePaymentIn, ReversalIn,
                             PackageFollowupIn, CompletePackageIn, RecordResponse, PackageListResponse, TreatmentListResponse)
 from package_service import (today_ist, treatment_key, load_package, create_package_record, package_view,
@@ -13,6 +14,7 @@ from package_service import (today_ist, treatment_key, load_package, create_pack
 
 router = APIRouter()
 financial_user = require_roles(ROLE_PRO, ROLE_OWNER_DOCTOR, ROLE_ADMIN)
+financial_reader = require_roles(ROLE_PRO, ROLE_OWNER_DOCTOR, ROLE_ADMIN, ROLE_DOCTOR)
 
 
 @router.get("/treatments", response_model=TreatmentListResponse)
@@ -44,8 +46,13 @@ async def package_calendar(start_date: date, duration_value: int, user=Depends(f
 
 @router.get("/packages", response_model=PackageListResponse)
 async def list_packages(patient_id: str | None = None, q: str = "", filter: str = "ALL",
-                        page: int = Query(1, ge=1), page_size: int = Query(25, ge=1, le=100), user=Depends(financial_user)):
+                        page: int = Query(1, ge=1), page_size: int = Query(25, ge=1, le=100), user=Depends(financial_reader)):
     query = {"patient_id": patient_id} if patient_id else {}
+    if patient_id:
+        await require_financial_patient(patient_id, user)
+    scoped_ids = await financial_patient_ids(user)
+    if scoped_ids is not None:
+        query = {"$and": [query, {"patient_id": {"$in": scoped_ids}}]}
     if q.strip():
         pattern = {"$regex": re.escape(q.strip()), "$options": "i"}
         ids = await db.patients.distinct("id", {"$or": [{k: pattern} for k in ("first_name", "last_name", "patient_uid", "phone")]})
@@ -86,8 +93,9 @@ async def create_package(payload: PackageIn, user=Depends(financial_user)):
 
 
 @router.get("/packages/{package_id}", response_model=dict)
-async def get_package(package_id: str, user=Depends(financial_user)):
+async def get_package(package_id: str, user=Depends(financial_reader)):
     p = await load_package(package_id)
+    await require_financial_patient(p["patient_id"], user)
     patient = await db.patients.find_one({"id": p["patient_id"]}, {"_id": 0, "id": 1, "patient_uid": 1, "first_name": 1, "last_name": 1, "phone": 1})
     history = await db.packages.find({"patient_id": p["patient_id"], "treatment_id": p["treatment_id"]}, {"_id": 0}).sort("start_date", 1).to_list(None)
     followups = await db.reminders.find({"package_id": p["id"], "kind": "PACKAGE_FOLLOWUP"}, {"_id": 0}).sort("scheduled_date", -1).to_list(None)

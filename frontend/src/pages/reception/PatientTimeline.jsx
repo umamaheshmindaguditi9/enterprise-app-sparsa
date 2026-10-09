@@ -4,6 +4,7 @@ import { api, fmtErr } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { PatientPhoto } from "@/components/PatientPhoto";
 import { PatientPhotoEditor } from "@/components/PatientPhotoEditor";
+import { HistoricalFIRSnapshot } from "@/components/HistoricalFIRSnapshot";
 import StatusBadge, { PaymentBadge } from "@/components/StatusBadge";
 import { ArrowLeft, Loader2, FileText, Pill, ReceiptText, Paperclip, Calendar, Sparkles, X, FilePlus } from "lucide-react";
 
@@ -206,6 +207,7 @@ export default function PatientTimeline() {
                 ) : <Section icon={ReceiptText} title="Payment"><p className="text-gray-400">—</p></Section>}
               </div>
 
+              {t.case.fir_snapshot && <HistoricalFIRSnapshot value={t.case.fir_snapshot} caseId={t.case.id} doctorName={t.doctor?.display_name} />}
               {t.attachments_count > 0 && (
                 <div className="mt-3 inline-flex items-center gap-1 text-xs text-gray-500">
                   <Paperclip size={12} /> {t.attachments_count} attachment{t.attachments_count !== 1 ? "s" : ""}

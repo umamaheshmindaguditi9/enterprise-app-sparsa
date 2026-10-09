@@ -151,7 +151,7 @@ Per Emergent support: appears only in the preview environment. Auto-removed on d
 - ~~**Mobile / tablet responsive pass**~~ (DONE 2026-07-20 — drawer sidebar, responsive padding, stacked case detail, larger touch targets).
 
 ## Next Action Items
-- **Current priority (2026-09-10):** Complete focused FIR photo registration tests and full package/notes/photo regression testing. Implementation was paused by the user before test-agent execution. Build/smoke/health checks are NOT full acceptance testing.
+- **Current priority (2026-10-08):** User verification of the completed Patient History/Revisit enhancement. Four comprehensive history regression suites, targeted browser checks, and 46 existing-flow regression tests passed. Earlier paused tasks remain separate; see the latest verification section below for precise scope.
 - Replace `/app/frontend/public/logo.png` with a higher-res / SVG version anytime — the `<Logo />` component already loads from `/logo.png`.
 - Paste Twilio + WhatsApp keys via **/admin/messaging** (or backend/.env) to activate WhatsApp/SMS.
 - Schedule `/app/scripts/backup.sh` on the clinic server PC (cron / Task Scheduler) — see `/app/scripts/README.md`.
@@ -183,3 +183,42 @@ Per Emergent support: appears only in the preview environment. Auto-removed on d
 - **P1:** Resolve known AI timeout in a separately approved change; review permissive CORS and the paused clinical-reminder data exposure.
 - **P2:** Existing N+1 optimisation, local login-background asset, messaging configuration and backup scheduling.
 - Suggested safeguard: maintain a short release checklist for registration, patient identity/photo and payment allocation.
+
+## Patient History / Revisit / Treatment Tracking — completed and verified (2026-10-08)
+
+### Request and approval
+- Source: `# MASTER PROMPT.txt`, https://customer-assets-4nw71qhi.emergentagent.net/job_simple-enterprise-ai/artifacts/03d08330588929ca_%23%20MASTER%20PROMPT.txt.
+- Goal: reuse existing clinical structures to make Primary History available on revisits, show previous complaints/observations/additional notes/prescriptions chronologically, keep current notes and medicines separate, preserve all historical records/date handling/new-patient workflow, and avoid unrelated changes.
+- Completed the requested read-only architecture inspection and presented an assessment before implementation. User explicitly authorised proceeding with best judgement: “No need for clarification, just proceed with your best judgment.”
+- Approved defaults used: later recorded primary-history changes carry forward; Observation uses existing `diagnosis_summary`; Additional Notes uses existing `additional_info`; original baseline `notes` remains separate. These two optional inputs appear on first and repeat consultations without changing registration or workflow steps.
+- Blank primary-history fields mean no replacement recorded; they do not erase the last nonblank reference. This safety rule is communicated in the UI. No undocumented deletion/versioning mechanism introduced.
+
+### Implementation — four application files only
+1. `backend/routers/patients.py`: optional `for_case_id`, `page`, `page_size` on existing `GET /api/patients/{id}/timeline`. Existing callers without `for_case_id` retain their old response/behavior. Opt-in clinical history is restricted to already-authorised clinical roles/cases and the matching patient.
+2. `frontend/src/components/ClinicalNotesEditor.jsx`: displays inherited Primary History with source case/date, while current Presenting Complaint/Observation/Additional Notes stay visit-specific. Only intentionally edited fields are submitted to existing note-save API, so displaying history does not copy it into the current record. Nested edits preserve sibling fields. History retry preserves typed values.
+3. New `frontend/src/components/PatientHistoryPanel.jsx`: paged read-only previous visits and all stored prescription versions/items/instructions, used in existing Notes and Prescription tabs. Dates use the existing IST formatter; first accessible/current/historical visits are distinguished. No treatment scoring, charts or clinical inference.
+4. `frontend/src/pages/doctor/CaseDetail.jsx`: integrates the history view and current visit date, prevents stale case responses/Rx drafts from leaking across navigation, keeps the existing current prescription editor and write API unchanged. Added test identifiers to existing Rx controls without behavior changes.
+
+### Data and chronology
+- No new database collections, fields, indexes or migration for this enhancement. No new packages/libraries, routes replacing existing APIs, authentication changes or configuration changes.
+- Existing patients → cases → clinical_notes/prescriptions relationships retained. No real historical records rewritten or deleted.
+- Primary reference is a read-time projection of the latest nonblank value for each of 16 baseline leaf fields from earlier accessible visits. It is not stored as a second patient-history record. The first visit remains identifiable even after later history updates.
+- Current and future visits excluded from previous-history results. Original timestamp strings returned unchanged. Timezone-aware comparison retains microsecond order; exact ties use existing case number/ID. No timestamps repaired, regenerated or reformatted in storage.
+- Primary derivation is not limited to the old timeline's 200-record cap. Full previous-visit details are database-paged; all prescription versions for the selected page remain read-only.
+- Hemanth's clinical history remains limited to his assigned cases; Jyothi/owner retains existing broader clinical access. This does NOT expand cross-doctor permissions or alter package financial scoping.
+
+### Verification
+- New reusable suite: `backend/tests/test_iteration15_patient_history_tracking.py` — **4 comprehensive tests passed**. Covers first/second/third visits, earlier case/note/Rx hash and timestamp immutability, baseline inheritance/updates, >200 prior visits, pagination, same-day/microsecond/different-offset ordering, ambiguous-timestamp safe error, legacy timeline compatibility and role guards.
+- Existing-flow regressions — **46 tests passed, zero failures/errors/skips**: FIR/photo registration, structured notes/privacy, packages/payments/concurrency, photo access, attachments, CSV exports and dashboards. XML: `test_reports/pytest/patient_history_existing_regression.xml`.
+- Targeted browser checks passed: real reception→doctor journey, independent current fields/Rx, previous Rx read-only, history failure/retry preserving typed notes, and responsive widths 320/768/1024/1440 with no page horizontal overflow.
+- Frontend build passed: `test_reports/patient-history-build.log`. Python compilation and preview health passed. New features use real APIs/MongoDB; only test-time failure/delay injection was used for recovery checks.
+- Test report: `test_reports/iteration_14.json`; final scope/acceptance record: `test_reports/patient_history_acceptance.md`.
+- Backend history fixtures were cleaned by the test suite. The exact browser-created fixture `UIHIST480036` (`528b6d3f-9904-4d63-ab29-66cc4b36b162`) and its two cases were removed after identity verification. No existing patient records or counters were reset.
+
+### Limitations and separate backlog
+- Ambiguous legacy visit timestamps without a timezone produce a history warning rather than guessing or rewriting dates. Current case entry remains available; stored record is untouched.
+- Blank values do not clear inherited baseline history. Explicit recorded replacements carry forward, and older values remain in their original visits.
+- Existing doctor visibility rules still apply; unavailable cross-doctor history is not exposed.
+- Testing additionally re-confirmed the PRE-EXISTING lack of login brute-force lockout and noted a missing optional auth-testing guide. Authentication was not part of the approved scope and was NOT changed. These findings do not represent a new history-feature regression.
+- Existing AI decision-support timeout and unconfigured SMS/WhatsApp remain outside this enhancement. Older paused supplemental photo/mobile testing is not represented as fully completed by this feature's tests.
+- Optional future enhancement, subject to approval: a read-only comparison of two selected visits; no comparison/scoring feature was added here.

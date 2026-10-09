@@ -185,6 +185,8 @@ class PastVisitIn(BaseModel):
     visit_date: datetime
     assigned_doctor_id: str
     complaint_text: str
+    # Same FIR contract; optional so existing historical-entry clients remain compatible.
+    fir_snapshot: Optional[FIRPatientIn] = None
     diagnosis_summary: Optional[str] = ""
     sensitivity_allergies: Optional[str] = ""
     safety_notes: Optional[str] = ""

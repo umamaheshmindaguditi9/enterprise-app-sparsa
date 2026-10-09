@@ -13,6 +13,7 @@ from core import (
 from models import ParseNotesIn, AdvisoryIn
 import prompts
 from clinical_context import homeopathic_notes_text
+from fir_parsing import normalize_fir_draft
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -347,6 +348,8 @@ async def parse_visit_notes(
         raise HTTPException(status_code=413, detail="Notes too long (max 8000 chars)")
 
     system = prompts.parse_visit_notes()
+    doctors = await db.doctor_profiles.find({}, {"_id": 0, "id": 1, "display_name": 1}).to_list(100)
+    system += "\nConsulting doctor roster: " + json.dumps(doctors)
 
     try:
         raw = await _call_llm(system, text, "parse-notes")
@@ -367,11 +370,17 @@ async def parse_visit_notes(
         raise HTTPException(status_code=502, detail=f"AI returned invalid JSON: {e}") from e
 
     # Light normalization / defaults
+    if not isinstance(parsed, dict):
+        raise HTTPException(status_code=502, detail="AI returned an invalid visit draft")
+    warnings = normalize_fir_draft(parsed, doctors)
     parsed.setdefault("prescription_items", [])
+    if not isinstance(parsed["prescription_items"], list):
+        parsed["prescription_items"] = []
+    parsed["prescription_items"] = [item for item in parsed["prescription_items"] if isinstance(item, dict)]
     for k in ("complaint_text", "diagnosis_summary", "sensitivity_allergies",
               "suggestions", "additional_info", "notes_for_patient"):
         parsed.setdefault(k, "")
 
     await audit(user, "AI_USED", "Notes", "parse", {"chars": len(text), "items": len(parsed.get("prescription_items", []))})
-    return {"draft": parsed, "raw": raw}
+    return {"draft": parsed, "raw": raw, "warnings": warnings}
 

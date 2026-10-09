@@ -44,6 +44,7 @@ const DOCTOR_ROLES = ["DOCTOR", "OWNER_DOCTOR"];
 const OWNER_ONLY = ["OWNER_DOCTOR"];
 const PHARMACY_ROLES = ["PHARMACY", "OWNER_DOCTOR", "ADMIN"];
 const PRO_ROLES = ["PRO", "OWNER_DOCTOR", "ADMIN"];
+const PACKAGE_READ_ROLES = [...PRO_ROLES, "DOCTOR"];
 const ADMIN_ONLY = ["ADMIN"];
 
 export default function App() {
@@ -87,8 +88,8 @@ export default function App() {
               <Route path="/pro" element={<RequireAuth roles={PRO_ROLES}><ProDashboard /></RequireAuth>} />
               <Route path="/pro/financial-search" element={<RequireAuth roles={PRO_ROLES}><ProFinancialSearch /></RequireAuth>} />
               <Route path="/pro/analytics" element={<RequireAuth roles={PRO_ROLES}><ProAnalytics /></RequireAuth>} />
-              <Route path="/pro/packages" element={<RequireAuth roles={PRO_ROLES}><Packages /></RequireAuth>} />
-              <Route path="/pro/packages/:id" element={<RequireAuth roles={PRO_ROLES}><PackageDetail /></RequireAuth>} />
+              <Route path="/pro/packages" element={<RequireAuth roles={PACKAGE_READ_ROLES}><Packages /></RequireAuth>} />
+              <Route path="/pro/packages/:id" element={<RequireAuth roles={PACKAGE_READ_ROLES}><PackageDetail /></RequireAuth>} />
               <Route path="/pro/cases/:id" element={<RequireAuth roles={PRO_ROLES}><BillingDetail /></RequireAuth>} />
 
               {/* Admin */}

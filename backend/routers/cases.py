@@ -1,8 +1,9 @@
 """Cases: CRUD + status transitions + clinical notes + prescriptions + follow-up."""
 import uuid
+import re
 from datetime import datetime, time, timezone, timedelta
-from fastapi import APIRouter, Depends, HTTPException
-from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import Optional, Literal
 
 from core import (
     db, now_utc, next_counter, audit,
@@ -19,21 +20,41 @@ from models import (
 )
 from package_service import package_bill_view
 from package_service import load_package, package_view
+from patient_access import can_read_patient_finances, redact_case_finances
 
 router = APIRouter()
 
 
 @router.get("/cases")
-async def list_cases(status: Optional[str] = None, user: dict = Depends(get_current_user)):
+async def list_cases(status: Optional[str] = None, scope: Optional[Literal["mine", "all"]] = None,
+                     page: Optional[int] = Query(None, ge=1), page_size: int = Query(25, ge=1, le=100),
+                     search: str = Query("", max_length=200), user: dict = Depends(get_current_user)):
     q = case_filter_for_role(user)
+    if scope == "mine":
+        if user["role"] not in (ROLE_DOCTOR, ROLE_OWNER_DOCTOR) or not user.get("doctor_id"):
+            raise HTTPException(403, "A doctor profile is required for My Queue")
+        q["assigned_doctor_id"] = user["doctor_id"]
     if status:
         if "," in status:
             q["status"] = {"$in": status.split(",")}
         else:
             q["status"] = status
-    cases = await db.cases.find(q, {"_id": 0}).sort("created_at", -1).limit(200).to_list(200)
-    enriched = [await enrich_case(c) for c in cases]
-    return {"cases": enriched}
+    if search.strip():
+        pattern = {"$regex": re.escape(search.strip()), "$options": "i"}
+        patient_ids = await db.patients.distinct("id", {"$or": [{k: pattern} for k in ("first_name", "last_name", "patient_uid", "phone")]})
+        q["$or"] = [{"patient_id": {"$in": patient_ids}}, {"case_uid": pattern}, {"complaint_text": pattern}]
+    # Old callers keep their capped response. All Cases opts in to database pagination.
+    limit = page_size if page is not None else 200
+    cursor = db.cases.find(q, {"_id": 0}).sort([("created_at", -1), ("id", -1)])
+    if page is not None:
+        cursor = cursor.skip((page - 1) * page_size)
+    cases = await cursor.limit(limit).to_list(limit)
+    enriched = [await enrich_case(c, user) for c in cases]
+    result = {"cases": enriched}
+    if page is not None:
+        total = await db.cases.count_documents(q)
+        result.update(total=total, page=page, page_size=page_size, total_pages=(total + page_size - 1) // page_size)
+    return result
 
 
 @router.post("/cases")
@@ -64,7 +85,7 @@ async def create_case(
     await db.cases.insert_one(doc)
     doc.pop("_id", None)
     await audit(user, "CREATE", "Case", doc["id"], {"case_uid": doc["case_uid"]})
-    return {"case": await enrich_case(doc)}
+    return {"case": await enrich_case(doc, user)}
 
 
 @router.get("/cases/{case_id}")
@@ -74,7 +95,7 @@ async def get_case(case_id: str, user: dict = Depends(get_current_user)):
     doctor = await db.doctor_profiles.find_one({"id": c["assigned_doctor_id"]}, {"_id": 0})
 
     role = user["role"]
-    response: dict = {"case": {**c, "patient": patient, "doctor": doctor}}
+    response: dict = {"case": {**redact_case_finances(c, user, patient), "patient": patient, "doctor": doctor}}
 
     if role in (ROLE_OWNER_DOCTOR, ROLE_DOCTOR, ROLE_ADMIN):
         note = await db.clinical_notes.find_one({"case_id": case_id}, {"_id": 0})
@@ -87,9 +108,11 @@ async def get_case(case_id: str, user: dict = Depends(get_current_user)):
 
     if role in (ROLE_PHARMACY, ROLE_OWNER_DOCTOR, ROLE_DOCTOR, ROLE_ADMIN):
         dispense = await db.pharmacy_dispense.find_one({"case_id": case_id}, {"_id": 0})
+        if dispense and not can_read_patient_finances(user, patient):
+            dispense.pop("medicine_amount", None)
         response["pharmacy_dispense"] = dispense
 
-    if role in (ROLE_PRO, ROLE_OWNER_DOCTOR, ROLE_RECEPTION, ROLE_ADMIN):
+    if role in (ROLE_PRO, ROLE_OWNER_DOCTOR, ROLE_RECEPTION, ROLE_ADMIN) or (role == ROLE_DOCTOR and can_read_patient_finances(user, patient)):
         payment = await db.payments.find_one({"case_id": case_id}, {"_id": 0})
         response["payment"] = await package_bill_view(payment)
 
@@ -152,7 +175,7 @@ async def update_case_status(case_id: str, payload: StatusUpdateIn, user: dict =
         **({"bypass_reason": payload.bypass_reason} if payload.bypass_reason else {}),
     })
     updated = await db.cases.find_one({"id": case_id}, {"_id": 0})
-    return {"case": await enrich_case(updated)}
+    return {"case": await enrich_case(updated, user)}
 
 
 @router.put("/cases/{case_id}/notes")

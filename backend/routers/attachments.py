@@ -7,6 +7,7 @@ from core import (
     ROLE_OWNER_DOCTOR, ROLE_DOCTOR, ROLE_RECEPTION, ROLE_ADMIN, ROLE_PRO,
 )
 from storage import put_object, get_object, ALLOWED_EXTS, MIME_TYPES, MAX_BYTES, APP_NAME
+from patient_access import require_financial_patient
 
 router = APIRouter()
 
@@ -18,6 +19,7 @@ async def upload_attachment(
     case_id: str,
     file: UploadFile = File(...),
     kind: str = Form("GENERAL"),
+    fir_photo: bool = Form(False),
     user: dict = Depends(require_roles(ROLE_OWNER_DOCTOR, ROLE_DOCTOR, ROLE_RECEPTION, ROLE_ADMIN, ROLE_PRO)),
 ):
     if kind not in ALLOWED_KINDS:
@@ -26,6 +28,10 @@ async def upload_attachment(
     if user["role"] == ROLE_PRO and kind != "PAYMENT_PROOF":
         raise HTTPException(status_code=403, detail="PRO can only upload PAYMENT_PROOF attachments")
     c = await load_case_for_user(case_id, user)
+    if kind == "PAYMENT_PROOF":
+        await require_financial_patient(c["patient_id"], user)
+    if fir_photo and (user["role"] not in (ROLE_RECEPTION, ROLE_ADMIN) or not c.get("is_historical") or not c.get("fir_snapshot") or kind != "GENERAL"):
+        raise HTTPException(403, "Historical FIR photos require a saved historical FIR and Reception/Admin access")
     fname = file.filename or "upload"
     ext = fname.rsplit(".", 1)[-1].lower() if "." in fname else ""
     if ext not in ALLOWED_EXTS:
@@ -47,6 +53,10 @@ async def upload_attachment(
         chunks.append(chunk)
     data = b"".join(chunks)
     content_type = MIME_TYPES[ext]
+    if fir_photo:
+        from routers.patient_photos import compressed_photo
+        data = compressed_photo(data)
+        content_type, ext, fname = "image/jpeg", "jpg", "FIR-photo.jpg"
     patient_uid = (await db.patients.find_one({"id": c["patient_id"]}, {"patient_uid": 1, "_id": 0})) or {}
     path = f"{APP_NAME}/attachments/{patient_uid.get('patient_uid', 'unknown')}/{case_id}/{uuid.uuid4()}.{ext}"
     try:
@@ -69,18 +79,27 @@ async def upload_attachment(
     }
     await db.attachments.insert_one(record)
     record.pop("_id", None)
+    if fir_photo:
+        await db.cases.update_one({"id": case_id}, {"$set": {"fir_snapshot.photo_attachment_id": record["id"]}})
     await audit(user, "ATTACHMENT_UPLOAD", "Attachment", record["id"], {"filename": fname, "size": len(data), "kind": kind})
     return {"attachment": record}
 
 
 @router.get("/cases/{case_id}/attachments")
 async def list_attachments(case_id: str, kind: str | None = None, user: dict = Depends(get_current_user)):
-    await load_case_for_user(case_id, user)
+    c = await load_case_for_user(case_id, user)
     q = {"case_id": case_id, "is_deleted": False}
     if kind:
         if kind not in ALLOWED_KINDS:
             raise HTTPException(status_code=400, detail="Invalid kind")
         q["kind"] = kind
+    if user["role"] == ROLE_DOCTOR:
+        try:
+            await require_financial_patient(c["patient_id"], user)
+        except HTTPException:
+            if kind == "PAYMENT_PROOF":
+                raise
+            q["kind"] = {"$ne": "PAYMENT_PROOF"}
     files = await db.attachments.find(q, {"_id": 0}).sort("created_at", -1).to_list(100)
     return {"attachments": files}
 
@@ -93,6 +112,8 @@ async def download_attachment(attachment_id: str, user: dict = Depends(get_curre
     if rec.get("kind") == "PATIENT_PHOTO":
         raise HTTPException(status_code=404, detail="Use the patient photo endpoint")
     await load_case_for_user(rec["case_id"], user)  # access check
+    if rec.get("kind") == "PAYMENT_PROOF":
+        await require_financial_patient(rec["patient_id"], user)
     try:
         data, ctype = get_object(rec["storage_path"])
     except Exception as e:
@@ -116,6 +137,8 @@ async def delete_attachment(
     if rec.get("kind") == "PATIENT_PHOTO":
         raise HTTPException(status_code=404, detail="Patient photos are managed from the patient profile")
     await load_case_for_user(rec["case_id"], user)
+    if rec.get("kind") == "PAYMENT_PROOF":
+        await require_financial_patient(rec["patient_id"], user)
     await db.attachments.update_one(
         {"id": attachment_id},
         {"$set": {"is_deleted": True, "deleted_at": now_utc().isoformat(), "deleted_by": user["id"]}},

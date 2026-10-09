@@ -1,0 +1,51 @@
+{
+  "summary": "Executed backend+frontend regression for Patient History/Revisit/Treatment tracking on preview URL. Backend scenarios 1-6 and role regression passed via reusable pytest (4/4): first/return/third-visit behavior, immutable earlier records, baseline derivation over >200 prior visits, timeline paging correctness, microsecond+timezone ordering, ambiguous current-visit timestamp safe 422, and clinical-history role guards. Frontend workflow checks passed for real reception→doctor flow: revisit history panel, retry-after-failed-history preserving typed notes, current visit fields independent/blank before edit, previous Rx read-only with current Rx not auto-prefilled, and responsive checks at 320/768/1024/1440 with no horizontal overflow.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "/api/auth/login",
+        "issue": "Brute-force lockout not enforced per playbook expectation: after 5 invalid attempts, valid login still succeeds immediately (200).",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "/app/auth_testing.md",
+        "issue": "Auth testing playbook file is missing in workspace, so documented auth checklist could not be fully followed from local guide."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration15_patient_history_tracking.py",
+    "/app/test_reports/pytest/iteration15_patient_history.xml"
+  ],
+  "action_items": [
+    "Implement and verify auth brute-force lockout policy (playbook target: lockout after 5 failed attempts).",
+    "Restore /app/auth_testing.md in repository if it is required operationally for future auth RCA/testing handoffs.",
+    "Optional hardening: add data-testid attributes to per-item prescription inputs/buttons in doctor CaseDetail for deeper automation granularity."
+  ],
+  "critical_code_review_comments": [
+    "patients.py consultation history pipeline correctly keeps default legacy timeline behavior unchanged when for_case_id is omitted.",
+    "cases.py save_notes uses exclude_unset and nested field-set handling, which correctly supports dirty-only updates without auto-copying inherited baseline.",
+    "ClinicalNotesEditor and PatientHistoryPanel guard against cross-case stale state (for_case_id checks, retry behavior), reducing wrong-case data leakage risk.",
+    "Auth router currently has no failed-attempt counters/lockout state, creating brute-force exposure versus stated testing playbook expectation."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration15_patient_history_tracking.py",
+    "/app/test_reports/iteration_14.json"
+  ],
+  "success_rate": {
+    "backend": "95% (history/revisit scope 100%; auth playbook lockout check failed)",
+    "frontend": "92% (targeted workflow checks passed; one intermediate selector assumption rerun corrected)"
+  },
+  "seed_data_creation": "Created synthetic HISTORYREG/UIHIST patients and revisit cases through real APIs/UI; backend test fixture auto-cleaned synthetic patients using admin delete teardown. UI-created records were retained.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Reusable suite added: test_iteration15_patient_history_tracking.py. It covers >200 history baseline derivation, pagination metadata/disjoint pages, microsecond+timezone ordering, ambiguous timestamp 422 safety, and role guards for for_case_id. Frontend retry-preserve test was validated by injecting one timeline request failure and using retry button without losing typed notes.",
+  "rca of the issue": "Brute-force lockout gap RCA: /api/auth/login validates password and returns 401 on failures but does not persist attempt counters, lockout windows, or cooldown state. Reproduction: POST /api/auth/login with wrong password 5 times (all 401), then immediately POST valid credentials returns 200. Mitigation: add username/IP attempt tracking with threshold+TTL lockout and audit logging, and include lockout reset on successful authentication."
+}

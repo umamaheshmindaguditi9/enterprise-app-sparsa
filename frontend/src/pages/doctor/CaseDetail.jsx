@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { api, fmtErr } from "@/lib/api";
+import { api, fmtErr, fmtIST } from "@/lib/api";
 import StatusBadge from "@/components/StatusBadge";
 import {
   ArrowLeft, Loader2, Sparkles, Save, ArrowRight, Plus, Trash2,
@@ -11,6 +11,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ClinicalNotesEditor } from "@/components/ClinicalNotesEditor";
 import { PatientPhoto } from "@/components/PatientPhoto";
+import { PatientHistoryPanel, usePatientHistory } from "@/components/PatientHistoryPanel";
 
 const TABS = [
   { key: "notes",       label: "Notes",        icon: Stethoscope },
@@ -23,6 +24,8 @@ const TABS = [
 export default function CaseDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const activeCaseId = useRef(id);
+  activeCaseId.current = id;
   const [data, setData] = useState(null);
   const [tab, setTab] = useState("notes");
   const [err, setErr] = useState("");
@@ -30,15 +33,20 @@ export default function CaseDetail() {
   const [bypassReason, setBypassReason] = useState("");
   const [bypassErr, setBypassErr] = useState("");
   const [pendingRxDraft, setPendingRxDraft] = useState(null); // {items, notes_for_patient, token}
+  const history = usePatientHistory(data?.case?.id === id ? data.case.patient_id : null, id);
 
   const reload = async () => {
-    try { const r = await api.get(`/cases/${id}`); setData(r.data); }
-    catch (e) { setErr(fmtErr(e)); }
+    try { const r = await api.get(`/cases/${id}`); if (activeCaseId.current === id) setData(r.data); }
+    catch (e) { if (activeCaseId.current === id) setErr(fmtErr(e)); }
   };
-  useEffect(() => { reload(); }, [id]);
+  useEffect(() => {
+    setData(null); setErr(""); setTab("notes"); setPendingRxDraft(null);
+    setBypassOpen(false); setBypassReason(""); setBypassErr("");
+    reload();
+  }, [id]);
 
   if (err) return <div className="p-8 text-red-700">{err}</div>;
-  if (!data) return <div className="p-8 grid place-items-center text-gray-400"><Loader2 className="animate-spin" /></div>;
+  if (!data || data.case.id !== id) return <div className="p-8 grid place-items-center text-gray-400"><Loader2 className="animate-spin" /></div>;
 
   const c = data.case;
 
@@ -74,6 +82,7 @@ export default function CaseDetail() {
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
           <div className="min-w-0">
             <div className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-1 tabular-nums">{c.case_uid}</div>
+            <div className="text-xs text-gray-500 mb-2" data-testid="case-visit-date">{c.is_historical || c.status === "CLOSED" ? "Selected historical visit" : "Current visit"} · {fmtIST(c.created_at)}{history.data?.is_first_visit ? " · First recorded visit in this history" : ""}</div>
             <div className="flex items-center gap-3"><PatientPhoto patientId={c.patient?.id} testId="doctor-patient-photo" /><h1 className="font-display text-2xl sm:text-3xl font-semibold text-gray-900 break-words min-w-0" data-testid="doctor-patient-name">{c.patient?.first_name} {c.patient?.last_name}</h1></div>
             <div className="text-sm text-gray-600 mt-1 tabular-nums">
               {c.patient?.patient_uid} · {c.patient?.gender} · {c.patient?.age}y · {c.patient?.phone}
@@ -128,15 +137,19 @@ export default function CaseDetail() {
         </div>
       </div>
 
-      {tab === "notes"       && <ClinicalNotesEditor key={c.id} caseId={c.id} initial={data.clinical_notes} onSaved={reload} />}
+      {tab === "notes" && <>
+        <PatientHistoryPanel history={history} />
+        {history.ready && <ClinicalNotesEditor key={c.id} caseId={c.id} initial={data.clinical_notes} onSaved={reload}
+          primaryHistory={history.data?.primary_history} primarySources={history.data?.primary_history_sources} hasPreviousVisits={!!history.data?.total} />}
+      </>}
       {tab === "rx"          && (
-        <PrescriptionTab
+        <><PatientHistoryPanel history={history} prescriptionOnly /><PrescriptionTab key={c.id}
           caseId={c.id}
           latest={data.latest_prescription}
           draft={pendingRxDraft}
           onDraftConsumed={() => setPendingRxDraft(null)}
           onSaved={reload}
-        />
+        /></>
       )}
       {tab === "attachments" && <AttachmentsTab caseId={c.id} />}
       {tab === "followup"    && <FollowupTab caseData={c} onSaved={reload} />}
@@ -232,23 +245,24 @@ function PrescriptionTab({ caseId, latest, draft, onDraftConsumed, onSaved }) {
           <button onClick={() => setDraftBanner("")} className="text-teal-700 hover:text-teal-900 text-xs font-medium">Dismiss</button>
         </div>
       )}
-      {latest && <div className="text-xs text-gray-500">Current version: <span className="tabular-nums font-medium text-gray-700">v{latest.version_no}</span></div>}
+      {latest && <div className="text-xs text-gray-500" data-testid="current-prescription-version">Current version: <span className="tabular-nums font-medium text-gray-700">v{latest.version_no}</span></div>}
       <div className="space-y-3">
         {items.map((it, i) => (
           <div key={it._key} className="border border-gray-200 rounded-md p-3 space-y-2 sm:space-y-0 sm:grid sm:grid-cols-12 sm:gap-2 sm:items-start" data-testid={`rx-item-${i}`}>
-            <input className="input sm:col-span-3" placeholder="Medicine" value={it.medicine_name} onChange={(e) => update(i, "medicine_name", e.target.value)} />
-            <input className="input sm:col-span-2" placeholder="Potency (e.g. 30C)" value={it.potency} onChange={(e) => update(i, "potency", e.target.value)} />
-            <input className="input sm:col-span-2" placeholder="Dosage" value={it.dosage} onChange={(e) => update(i, "dosage", e.target.value)} />
-            <input className="input sm:col-span-2" placeholder="Frequency" value={it.frequency} onChange={(e) => update(i, "frequency", e.target.value)} />
-            <input className="input sm:col-span-2 tabular-nums" type="number" placeholder="Days" value={it.duration_days} onChange={(e) => update(i, "duration_days", e.target.value)} />
+            <input className="input sm:col-span-3" placeholder="Medicine" value={it.medicine_name} onChange={(e) => update(i, "medicine_name", e.target.value)} data-testid={`rx-medicine-${i}`} />
+            <input className="input sm:col-span-2" placeholder="Potency (e.g. 30C)" value={it.potency} onChange={(e) => update(i, "potency", e.target.value)} data-testid={`rx-potency-${i}`} />
+            <input className="input sm:col-span-2" placeholder="Dosage" value={it.dosage} onChange={(e) => update(i, "dosage", e.target.value)} data-testid={`rx-dosage-${i}`} />
+            <input className="input sm:col-span-2" placeholder="Frequency" value={it.frequency} onChange={(e) => update(i, "frequency", e.target.value)} data-testid={`rx-frequency-${i}`} />
+            <input className="input sm:col-span-2 tabular-nums" type="number" placeholder="Days" value={it.duration_days} onChange={(e) => update(i, "duration_days", e.target.value)} data-testid={`rx-duration-${i}`} />
             <button
               onClick={() => setItems(items.filter((_, j) => j !== i))}
               className="sm:col-span-1 text-gray-400 hover:text-red-600 py-2 grid place-items-center min-h-[40px] w-full sm:w-auto border sm:border-0 border-gray-200 rounded"
               aria-label="Remove medicine"
+              data-testid={`rx-remove-medicine-${i}`}
             >
               <Trash2 size={14} />
             </button>
-            <textarea rows={1} className="input sm:col-span-12" placeholder="Instructions (optional)" value={it.instructions} onChange={(e) => update(i, "instructions", e.target.value)} />
+            <textarea rows={1} className="input sm:col-span-12" placeholder="Instructions (optional)" value={it.instructions} onChange={(e) => update(i, "instructions", e.target.value)} data-testid={`rx-instructions-${i}`} />
           </div>
         ))}
         <button onClick={() => setItems([...items, withKey({ ...EMPTY_ITEM })])} className="inline-flex items-center gap-1 text-sm text-teal-700 hover:text-teal-800 font-medium min-h-[40px]" data-testid="add-rx-item-btn">
@@ -256,7 +270,7 @@ function PrescriptionTab({ caseId, latest, draft, onDraftConsumed, onSaved }) {
         </button>
       </div>
       <Field label="Notes for patient (printable)">
-        <textarea rows={3} className="input" value={notesForPatient} onChange={(e) => setNotesForPatient(e.target.value)} />
+        <textarea rows={3} className="input" value={notesForPatient} onChange={(e) => setNotesForPatient(e.target.value)} data-testid="rx-patient-instructions" />
       </Field>
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-1">
         <button onClick={save} disabled={busy} className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-teal-700 hover:bg-teal-800 text-white rounded-md text-sm font-medium disabled:opacity-60 min-h-[44px]" data-testid="save-rx-btn">

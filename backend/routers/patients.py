@@ -1,15 +1,17 @@
 """Doctors list + Patients CRUD + visit timeline + historical (past) visits."""
 import uuid
-from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from core import (
     db, now_utc, next_counter, audit,
-    get_current_user, require_roles, case_filter_for_role,
+    get_current_user, require_roles, case_filter_for_role, load_case_for_user,
     ROLE_RECEPTION, ROLE_OWNER_DOCTOR, ROLE_ADMIN, ROLE_DOCTOR, ROLE_PHARMACY,
     STATUS_CLOSED,
 )
 from models import PatientIn, PastVisitIn, PatientUpdateIn, FIRPatientIn  # noqa: F401
 from package_service import package_bill_view
+from patient_access import can_read_patient_finances, redact_case_finances, require_clinical_patient
 
 
 def _compute_bmi(height_cm: float | None, weight_kg: float | None) -> float | None:
@@ -121,6 +123,7 @@ async def get_patient(patient_id: str, user: dict = Depends(get_current_user)):
     p = await db.patients.find_one({"id": patient_id}, {"_id": 0})
     if not p:
         raise HTTPException(status_code=404, detail="Patient not found")
+    await require_clinical_patient(p, user)
     return {"patient": p}
 
 
@@ -178,11 +181,104 @@ async def delete_patient(
     return {"ok": True, "deleted_cases": case_count}
 
 
+PRIMARY_HISTORY_PATHS = (
+    "chief_complaint", "past_history", "family_history.father", "family_history.mother",
+    "family_history.paternal_grandfather", "family_history.paternal_grandmother",
+    "family_history.maternal_grandfather", "family_history.maternal_grandmother",
+    "personal_history.appetite", "personal_history.thirst", "personal_history.bowels",
+    "personal_history.urine", "personal_history.sleep", "personal_history.thermal", "life_style", "notes",
+)
+
+
+async def _consultation_history(patient, current, user, page, page_size):
+    """Read-only view of existing records: no history copies, date rewrites or patient updates."""
+    try:
+        current_time = datetime.fromisoformat(current["created_at"].replace("Z", "+00:00"))
+        if current_time.tzinfo is None:
+            raise ValueError("Visit timezone missing")
+    except (KeyError, ValueError):
+        raise HTTPException(422, "The selected visit has no unambiguous timestamp. Existing records have not been changed.")
+    query = {"patient_id": patient["id"], **case_filter_for_role(user)}
+    fraction = f"{current_time.microsecond:06d}"
+    order = {"_visit_time": -1, "_visit_fraction": -1, "case_uid": -1, "id": -1}
+    earlier = {"$or": [
+        {"_visit_time": {"$lt": current_time}},
+        {"_visit_time": current_time, "_visit_fraction": {"$lt": fraction}},
+        {"_visit_time": current_time, "_visit_fraction": fraction, "case_uid": {"$lt": current["case_uid"]}},
+        {"_visit_time": current_time, "_visit_fraction": fraction, "case_uid": current["case_uid"], "id": {"$lt": current["id"]}},
+    ]}
+    prior_pipeline = [
+        {"$match": query},
+        {"$set": {"_visit_time": {"$convert": {"input": "$created_at", "to": "date", "onError": None, "onNull": None}}}},
+        # BSON dates have millisecond precision; retain the existing ISO microsecond order as well.
+        {"$set": {"_visit_fraction": {"$let": {"vars": {"fraction": {"$regexFind": {"input": "$created_at", "regex": r"\.(\d+)"}}},
+            "in": {"$substrCP": [{"$concat": [{"$ifNull": [{"$arrayElemAt": ["$$fraction.captures", 0]}, ""]}, "000000"]}, 0, 6]}}}}},
+        {"$match": {"$and": [{"_visit_time": {"$ne": None}}, earlier]}},
+        {"$sort": order},
+    ]
+    result = (await db.cases.aggregate([*prior_pipeline, {"$facet": {
+        "rows": [{"$skip": (page - 1) * page_size}, {"$limit": page_size}, {"$project": {"_id": 0, "_visit_time": 0, "_visit_fraction": 0}}],
+        "total": [{"$count": "count"}],
+        "first": [{"$sort": {k: 1 for k in order}}, {"$limit": 1},
+                  {"$project": {"_id": 0, "id": 1, "case_uid": 1, "created_at": 1}}],
+    }}]).to_list(1))[0]
+    total = result["total"][0]["count"] if result["total"] else 0
+
+    # Latest non-blank recorded value for each baseline field, restricted to prior accessible visits.
+    # Blank legacy inputs were often saved without being entered, so they are not erase instructions.
+    reference_rows = await db.cases.aggregate([
+        *prior_pipeline,
+        {"$lookup": {"from": "clinical_notes", "localField": "id", "foreignField": "case_id", "as": "_notes"}},
+        {"$set": {"_note": {"$arrayElemAt": ["$_notes", 0]}}},
+        {"$project": {"_id": 0, "entries": [{"key": path, "value": {"$ifNull": [f"$_note.{path}", ""]},
+            "source": {"case_id": "$id", "case_uid": "$case_uid", "created_at": "$created_at"}} for path in PRIMARY_HISTORY_PATHS]}},
+        {"$unwind": "$entries"},
+        {"$match": {"$expr": {"$ne": [{"$trim": {"input": {"$convert": {"input": "$entries.value", "to": "string", "onError": "", "onNull": ""}}}}, ""]}}},
+        {"$group": {"_id": "$entries.key", "value": {"$first": "$entries.value"}, "source": {"$first": "$entries.source"}}},
+        {"$project": {"_id": 0, "field": "$_id", "value": 1, "source": 1}},
+    ]).to_list(len(PRIMARY_HISTORY_PATHS))
+    primary, sources = {}, {}
+    for row in reference_rows:
+        path = row["field"]
+        if "." in path:
+            section, key = path.split(".", 1)
+            primary.setdefault(section, {})[key] = row["value"]
+        else:
+            primary[path] = row["value"]
+        sources[path] = row["source"]
+
+    rows = result["rows"]
+    ids = [c["id"] for c in rows]
+    notes = {n["case_id"]: n for n in await db.clinical_notes.find({"case_id": {"$in": ids}}, {"_id": 0}).to_list(None)}
+    doctors = {d["id"]: d for d in await db.doctor_profiles.find({"id": {"$in": [c["assigned_doctor_id"] for c in rows]}}, {"_id": 0}).to_list(None)}
+    prescriptions = {}
+    async for rx in db.prescriptions.find({"case_id": {"$in": ids}}, {"_id": 0}).sort([("version_no", -1), ("created_at", -1)]):
+        prescriptions.setdefault(rx["case_id"], []).append(rx)
+    entries = [{"case": redact_case_finances(c, user, patient), "doctor": doctors.get(c["assigned_doctor_id"]),
+                "clinical_notes": notes.get(c["id"]), "prescriptions": prescriptions.get(c["id"], [])} for c in rows]
+    first = result["first"][0] if result["first"] else {k: current[k] for k in ("id", "case_uid", "created_at")}
+    return {"patient": patient, "timeline": entries, "for_case_id": current["id"],
+            "primary_history": primary, "primary_history_sources": sources,
+            "first_visit": first, "is_first_visit": total == 0,
+            "history_scope": "assigned_cases" if user["role"] == ROLE_DOCTOR else "patient_cases",
+            "page": page, "page_size": page_size, "total": total, "total_pages": (total + page_size - 1) // page_size}
+
+
 @router.get("/patients/{patient_id}/timeline")
-async def patient_timeline(patient_id: str, user: dict = Depends(get_current_user)):
+async def patient_timeline(patient_id: str, for_case_id: str | None = None,
+                           page: int = Query(1, ge=1), page_size: int = Query(10, ge=1, le=50),
+                           user: dict = Depends(get_current_user)):
     patient = await db.patients.find_one({"id": patient_id}, {"_id": 0})
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
+    await require_clinical_patient(patient, user)
+    if for_case_id is not None:
+        if user["role"] not in (ROLE_OWNER_DOCTOR, ROLE_DOCTOR, ROLE_ADMIN):
+            raise HTTPException(403, "Clinical history is available to authorised clinicians only")
+        current = await load_case_for_user(for_case_id, user)
+        if current["patient_id"] != patient_id:
+            raise HTTPException(404, "Visit not found for this patient")
+        return await _consultation_history(patient, current, user, page, page_size)
     q = {"patient_id": patient_id}
     if user["role"] == ROLE_DOCTOR:
         q["assigned_doctor_id"] = user.get("doctor_id")
@@ -191,7 +287,7 @@ async def patient_timeline(patient_id: str, user: dict = Depends(get_current_use
     entries = []
     for c in cases:
         doctor = await db.doctor_profiles.find_one({"id": c["assigned_doctor_id"]}, {"_id": 0})
-        payment = await package_bill_view(await db.payments.find_one({"case_id": c["id"]}, {"_id": 0}))
+        payment = await package_bill_view(await db.payments.find_one({"case_id": c["id"]}, {"_id": 0})) if can_read_patient_finances(user, patient) else None
         notes = None
         prescriptions = []
         if user["role"] in (ROLE_OWNER_DOCTOR, ROLE_DOCTOR, ROLE_ADMIN):
@@ -200,7 +296,7 @@ async def patient_timeline(patient_id: str, user: dict = Depends(get_current_use
             prescriptions = await db.prescriptions.find({"case_id": c["id"]}, {"_id": 0}).sort("version_no", -1).to_list(10)
         attachments_count = await db.attachments.count_documents({"case_id": c["id"], "is_deleted": False})
         entries.append({
-            "case": c,
+            "case": redact_case_finances(c, user, patient),
             "doctor": doctor,
             "payment": payment if user["role"] != ROLE_DOCTOR or c["assigned_doctor_id"] == user.get("doctor_id") else None,
             "clinical_notes": notes,
@@ -233,6 +329,12 @@ async def create_past_visit(
     if user["role"] == ROLE_DOCTOR and payload.assigned_doctor_id != user.get("doctor_id"):
         raise HTTPException(status_code=403, detail="Doctors can only backfill their own visits")
 
+    if payload.fir_snapshot and (
+        payload.fir_snapshot.consulting_doctor_id != payload.assigned_doctor_id
+        or payload.fir_snapshot.chief_complaint != payload.complaint_text
+    ):
+        raise HTTPException(422, "Historical FIR doctor and complaint must match the visit")
+
     visit_iso = payload.visit_date.isoformat()
     seq = await next_counter("case_uid")
     case_id = str(uuid.uuid4())
@@ -255,6 +357,11 @@ async def create_past_visit(
         "ready_for_billing_at": visit_iso,
         "closed_at": visit_iso,
     }
+    if payload.fir_snapshot:
+        snapshot = payload.fir_snapshot.model_dump()
+        snapshot["bmi"] = _compute_bmi(snapshot.get("height_cm"), snapshot.get("weight_kg"))
+        case_doc["fir_snapshot"] = snapshot
+        case_doc["visit_type"] = snapshot["visit_type"]
     await db.cases.insert_one(case_doc)
     case_doc.pop("_id", None)
 

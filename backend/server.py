@@ -109,6 +109,9 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(level
 @app.on_event("startup")
 async def on_startup():
     await init_package_indexes()
+    await db.cases.create_index([("created_at", -1), ("id", -1)], name="case_pagination")
+    await db.cases.create_index([("assigned_doctor_id", 1), ("created_at", -1), ("id", -1)], name="doctor_case_pagination")
+    await db.patients.create_index("consulting_doctor_id", name="patient_current_doctor")
     await seed_all()
     try:
         await refresh_messaging_cache(db)
