@@ -151,7 +151,7 @@ Per Emergent support: appears only in the preview environment. Auto-removed on d
 - ~~**Mobile / tablet responsive pass**~~ (DONE 2026-07-20 — drawer sidebar, responsive padding, stacked case detail, larger touch targets).
 
 ## Next Action Items
-- **Current priority (2026-10-08):** User verification of the completed Patient History/Revisit enhancement. Four comprehensive history regression suites, targeted browser checks, and 46 existing-flow regression tests passed. Earlier paused tasks remain separate; see the latest verification section below for precise scope.
+- **Current priority (2026-10-10):** User review of Add Past Visit → Payments → Packages & dues. Core backend/browser tests passed; one advanced post-commit lost-response browser test remains unverified. User subsequently requested a deployment readiness health check: scanner PASS, preview health/login HTTP 200. No deployment performed. See latest sections below for exact scope and caveats.
 - Replace `/app/frontend/public/logo.png` with a higher-res / SVG version anytime — the `<Logo />` component already loads from `/logo.png`.
 - Paste Twilio + WhatsApp keys via **/admin/messaging** (or backend/.env) to activate WhatsApp/SMS.
 - Schedule `/app/scripts/backup.sh` on the clinic server PC (cron / Task Scheduler) — see `/app/scripts/README.md`.
@@ -222,3 +222,35 @@ Per Emergent support: appears only in the preview environment. Auto-removed on d
 - Testing additionally re-confirmed the PRE-EXISTING lack of login brute-force lockout and noted a missing optional auth-testing guide. Authentication was not part of the approved scope and was NOT changed. These findings do not represent a new history-feature regression.
 - Existing AI decision-support timeout and unconfigured SMS/WhatsApp remain outside this enhancement. Older paused supplemental photo/mobile testing is not represented as fully completed by this feature's tests.
 - Optional future enhancement, subject to approval: a read-only comparison of two selected visits; no comparison/scoring feature was added here.
+
+## Add Past Visit → Packages & dues (2026-10-10)
+
+### Approval and scope
+- User explicitly approved implementing the smallest compatible change to Add Past Visit → Payments, reusing existing package/payment rules, historical dates and permissions, with no unrelated record rewrites.
+- Added optional Visit charges / Packages & dues mode. Existing package summary, treatment catalogue, package creation, date calculation and integer-paise ledger are reused. New-package modal defaults its start date to the visit date and explicitly states that creating a package saves it separately even if the visit is cancelled.
+- Package entry on this page is available to ADMIN and OWNER_DOCTOR only, the intersection of existing historical-entry and financial-write permissions. Reception sees a permission notice and retains legacy visit payments. Doctor package reading remains scoped to the current consulting doctor. PRO's existing package workflow is unchanged; PRO does not gain historical clinical-entry access.
+- Package selection, historical payment date/method/reference, zero/partial/full payment and projected outstanding balance are available. Package mode excludes legacy consultation/medicine charges from submission to prevent double billing; toggling back preserves the entered legacy values.
+- Historical coverage uses the visit's IST date, start-inclusive/end-exclusive, not today's lifecycle. Previously expired/completed/renewed contracts can cover their original dates. Existing live-visit and renewal rules remain unchanged. The case remains CLOSED with original historical timestamps.
+
+### Architecture and safety
+- Optional `PastVisitIn.package_billing` and response envelope added in existing models. `routers/patients.py` builds the same case/clinical/Rx documents and selects the new path only when package billing is explicitly supplied.
+- New `backend/historical_package_service.py` validates roles, matching patient, date boundaries, monetary precision and mutually exclusive billing. Reuses existing atomic `append_payment`; package bills remain references rather than a second source of revenue.
+- Additive `historical_package_imports` collection stores request fingerprints/IDs and short-lived save reservations. Idempotent case/notes/Rx/bill writes allow retry recovery on standalone MongoDB; this is NOT a multi-document ACID transaction. No old patient/visit/financial records are migrated or rewritten.
+- Client retains the exact submitted package request after an uncertain response, locks fields and offers Retry same save. A successfully saved visit uses only photo-upload retry if the optional photo fails.
+- UI files: `PastVisitForm.jsx`, new `components/packages/PastVisitPackageFields.jsx`, optional `initialStartDate` prop on `PackageForm.jsx`, optional close-button test ID on shared dialog. No dependencies, environment variables, auth credentials, authentication logic, AI prompts or integrations changed.
+
+### Verification and remaining coverage
+- Frontend build and Python compilation passed. One desktop smoke check passed; package fields/modal measured at 320/768/1024/1440 without horizontal page overflow.
+- New regression suite `backend/tests/test_iteration16_past_visit_packages_dues.py`: **9/9 passed**. Existing selected past-visit/FIR/history/package suites: **23/23 passed**. Reports: `test_reports/iteration_15.json`, `test_reports/pytest/iteration16_pastpkg.xml`, `test_reports/pytest/iteration16_existing_regressions.xml`.
+- Verified historical date validation, role guards, expired/completed/renewed historical coverage, zero/partial/full settlement, replay and concurrent-save behavior, competing overpayment rejection, unchanged doctor financial scope. Browser verified package creation/selection, 17 clinical fields retained, amount-mode separation, load-failure recovery and reception legacy save.
+- Follow-up testing verified **real saved package visit + failed photo upload + successful real upload retry**: exactly one visit, one bill, one note, one Rx and one attachment. Retry made attachment calls only. Test case `ec18b6ec-01ca-4056-93f9-3ef9c2408c39` belonged to a newly created fixture and was cleaned; existing patients were not removed.
+- **Open coverage gap:** actual post-commit response loss could not be demonstrated in the browser because the test interceptor's forwarded request returned 401. Normal browser/API authentication and server replay/concurrency tests passed; this is not a confirmed application auth bug. UI pending/exact-body retry was tested using injected failure. No application API is mocked; fault injection was test-only. Do not claim this advanced scenario fully verified.
+- Test agent observed a non-blocking `<span>` inside `<option>` console warning attributed tentatively to preview instrumentation; attribution and non-instrumented reproduction remain unverified. No scoped functional defect was reported.
+- P1: user acceptance and completion of the real post-commit response-loss test without adding production failpoints. P2: optional package receipt preview before saving. Existing auth/CORS/AI/reminder backlog remains separate.
+
+## Deployment readiness health check (2026-10-10)
+- Exact user request: “Call Deployment Agent and Run Health Check to Check for Readiness for Deployment”. Performed readiness scanning only; **no deployment, production access or configuration changes**.
+- Scanner returned **PASS**, with no blocking findings: compilation, environment loading/API URL configuration, service ports/supervisor, Mongo-only architecture, required build files and non-destructive/idempotent startup checked.
+- Independent preview checks: `/api/health` returned `status: ok`; `/login` returned HTTP 200. Health reports SMS and WhatsApp disabled/unconfigured.
+- Readiness does not establish production runtime health or complete acceptance of all workflows. Existing concerns remain: permissive CORS configuration, absent login brute-force lockout, AI long-call proxy timeout, disabled messaging providers, existing React hook warnings and the advanced financial test gap above.
+- Report: `test_reports/deployment_health_current.md`. Next action is user review of the changed workflow; no release was initiated. Suggested safeguard: a short historical-entry/payment receipt release checklist.
