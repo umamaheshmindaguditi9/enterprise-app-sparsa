@@ -1,0 +1,60 @@
+{
+  "summary": "Completed scoped backend+frontend testing for Add Past Visit -> Packages & dues on preview URL. New backend pytest suite passed (9/9) covering package_billing validation, RBAC, idempotency, concurrency, settlement, and doctor financial scope. Existing relevant regressions also passed (23/23): iteration14 (past-visit/FIR snapshot + finance scope), iteration15 (patient history), and req35 package/payment class.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Past-visit response-loss recovery after backend save",
+        "issue": "Could not deterministically inject transport failure AFTER a real backend commit via browser routing alone. Recovery UX was validated with a MOCKED 500 and exact-body retry behavior, but post-commit network-loss duplicate-proof remains partially unverified in real transport conditions.",
+        "affected_selectors": [
+          "[data-testid='save-past-visit-btn']",
+          "[data-testid='past-package-save-pending']"
+        ]
+      },
+      {
+        "flow": "Past photo upload failure after saved package visit",
+        "issue": "Not executed in this run for package-mode specific path; dedicated failure injection/retry verification still needed.",
+        "affected_selectors": [
+          "[data-testid='past-retry-photo']",
+          "[data-testid='past-photo-warning']"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration16_past_visit_packages_dues.py",
+    "/app/test_reports/pytest/iteration16_pastpkg.xml",
+    "/app/test_reports/pytest/iteration16_existing_regressions.xml",
+    "/app/scripts/setup_iteration16_ui_fixture.py",
+    "/app/scripts/cleanup_iteration16_ui_fixture.py"
+  ],
+  "action_items": [
+    "Add a controlled backend failure-injection hook for post-ledger-write response loss so true after-commit retry/no-duplicate behavior can be deterministically tested end-to-end.",
+    "Run one focused UI/API test for photo upload failure path specifically after package-mode save to confirm no unintended payment/visit re-submission."
+  ],
+  "critical_code_review_comments": [
+    "historical_package_service.py correctly enforces package-path write RBAC (Admin/Owner only), mixed legacy+package guardrails, and durable idempotent reservation with lock/lease semantics.",
+    "patients.py package-path historical visits preserve immutable timestamps (created/updated/closed aligned to visit_date) and keep legacy non-package path behavior unchanged.",
+    "PastVisitForm.jsx correctly keeps legacy amounts user-editable in UI while zeroing submission in package mode and retaining pending payload for retry-same-save UX."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration16_past_visit_packages_dues.py",
+    "/app/scripts/setup_iteration16_ui_fixture.py",
+    "/app/scripts/cleanup_iteration16_ui_fixture.py",
+    "/app/test_reports/iteration_15.json"
+  ],
+  "success_rate": {
+    "backend": "100% (32/32 executed in this run)",
+    "frontend": "92% (all targeted live UI flows passed; 2 advanced failure-mode checks partially unverified as noted)"
+  },
+  "seed_data_creation": "Created TEST_PASTPKG_* backend fixtures in pytest (auto-cleaned in fixture teardown) and TEST_PASTPKG_UI_* UI fixture (cleaned via cleanup script).",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Admin flow validated: 17 clinical fields present, package toggle works, package load failure blocks save then refresh recovers, modal package start_date defaults to visit date, modal-created package persists independently, and retry-same-save reuses exact payload with legacy monetary fields zeroed in package mode. Reception flow validated: permission notice shown, no package controls, legacy past visit save still works.",
+  "rca of the issue": "No confirmed functional defects found in scoped feature behavior under tested paths. Remaining risk is testability gap: true post-commit response-loss simulation is not directly achievable with current UI-only routing interception, so that acceptance slice remains partially verified using MOCKED failure."
+}

@@ -2,6 +2,7 @@
 from datetime import datetime, date
 from typing import List, Optional, Literal
 from pydantic import BaseModel, Field
+from package_models import HistoricalPackageIn
 
 
 class LoginIn(BaseModel):
@@ -188,6 +189,7 @@ class PastVisitIn(BaseModel):
     # Same FIR contract; optional so existing historical-entry clients remain compatible.
     fir_snapshot: Optional[FIRPatientIn] = None
     clinical_notes: Optional[ClinicalNoteIn] = None
+    package_billing: Optional[HistoricalPackageIn] = None
     diagnosis_summary: Optional[str] = ""
     sensitivity_allergies: Optional[str] = ""
     safety_notes: Optional[str] = ""

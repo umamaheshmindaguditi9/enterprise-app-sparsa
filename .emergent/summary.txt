@@ -1,0 +1,14 @@
+<analysis>Add Past VisitPastVisitForm.jsxpackage_service.pypackage_billing.pydecision_supportmax_tokens/app/backend/routers/ai.pyjob_idmanifest invalid: Request contains an invalid argumentPastVisitForm.jsxask_humanCORS_ALLOWED_ORIGINSbackend/.env/api/auth/login/app/scripts/backup.shpro_analyticsai_visit_recaplist_cases/app/backend/routers/cases.py
+/app/
+├── backend/
+│   ├── models.py, package_models.py, core.py, fir_parsing.py            
+│   ├── routers/              
+│   │   ├── ai.py, cases.py, packages.py, package_billing.py, patients.py             
+│   └── tests/                # Pytest suites (includes robust regression suites)
+├── frontend/
+│   ├── src/
+│   │   ├── components/       # ClinicalNotesEditor.jsx, packages/PackageForm.jsx
+│   │   ├── pages/            
+│   │   │   ├── doctor/       # CaseDetail.jsx 
+│   │   │   ├── reception/    # PastVisitForm.jsx, NewPatient.jsx, PatientTimeline.jsx
+userspatientscasesclinical_notesprescriptionspaymentsreminderssettingspackages/app/frontend/src/pages/reception/PastVisitForm.jsx/app/backend/routers/packages.py/app/backend/package_service.py/app/backend/models.py/app/backend/fir_parsing.py/app/frontend/src/components/ClinicalNotesEditor.jsx/app/test_reports/iteration_12.jsoniteration_15.jsonbackend/routers/ai.pydecision_supportPOST /api/patients/{patient_id}/past-visitGET /api/patients/{id}/timeline/app/test_reports/deployment_health_2026-09-10.md/app/test_reports/iteration_12.json/app/test_reports/iteration_13.json/app/test_reports/iteration_14.json/app/test_reports/iteration_15.json/app/test_reports/pytest/decision_support/app/backend/tests/test_iteration*.py/app/memory/test_credentials.mdPassword@123</analysis>

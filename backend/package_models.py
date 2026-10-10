@@ -55,6 +55,19 @@ class PackageLinkIn(StrictInput):
     package_id: str
 
 
+class HistoricalPackageIn(StrictInput):
+    package_id: str = Field(min_length=1)
+    amount: Decimal = Field(default=Decimal("0"), ge=0, le=100000000, decimal_places=2)
+    payment_date: date
+    payment_mode: Literal["CASH", "PHONEPE", "CARD", "OTHER"] = "CASH"
+    reference: str = Field(default="", max_length=200)
+    idempotency_key: str = Field(min_length=16, max_length=100)
+
+
+class HistoricalVisitResponse(BaseModel):
+    case: dict
+
+
 class PackageVisitIn(StrictInput):
     medicines_taken: bool = True
 

@@ -5,9 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Plus, Loader2 } from "lucide-react";
 import { dateLabel, today } from "./PackageSummary";
 
-export const PackageForm = ({ patientId, previous, onSaved, onCancel }) => {
+export const PackageForm = ({ patientId, previous, onSaved, onCancel, initialStartDate }) => {
   const [treatments, setTreatments] = useState([]), [treatmentName, setTreatmentName] = useState("");
-  const [form, setForm] = useState({ treatment_id: previous?.treatment_id || "", name: previous?.name || "", duration_value: previous?.duration_value || 6, start_date: today(), amount: previous?.amount || "" });
+  const [form, setForm] = useState({ treatment_id: previous?.treatment_id || "", name: previous?.name || "", duration_value: previous?.duration_value || 6, start_date: initialStartDate || today(), amount: previous?.amount || "" });
   const [end, setEnd] = useState(""), [error, setError] = useState(""), [busy, setBusy] = useState(false);
   const edit = (key, value) => setForm(f => ({ ...f, [key]: value }));
   useEffect(() => { api.get("/treatments").then(r => setTreatments(r.data.treatments)).catch(e => setError(fmtErr(e))); }, []);

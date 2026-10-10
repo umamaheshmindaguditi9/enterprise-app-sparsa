@@ -11,6 +11,8 @@ from core import (
 )
 from models import PatientIn, PastVisitIn, PatientUpdateIn, FIRPatientIn  # noqa: F401
 from package_service import package_bill_view
+from package_models import HistoricalVisitResponse
+from historical_package_service import validate_historical_package, save_historical_package_visit
 from patient_access import can_read_patient_finances, redact_case_finances, require_clinical_patient
 
 
@@ -307,7 +309,7 @@ async def patient_timeline(patient_id: str, for_case_id: str | None = None,
     return {"patient": patient, "timeline": entries}
 
 
-@router.post("/patients/{patient_id}/past-visit")
+@router.post("/patients/{patient_id}/past-visit", response_model=HistoricalVisitResponse)
 async def create_past_visit(
     patient_id: str,
     payload: PastVisitIn,
@@ -335,6 +337,7 @@ async def create_past_visit(
     ):
         raise HTTPException(422, "Historical FIR doctor and complaint must match the visit")
 
+    package = await validate_historical_package(payload, patient_id, user) if payload.package_billing else None
     visit_iso = payload.visit_date.isoformat()
     seq = await next_counter("case_uid")
     case_id = str(uuid.uuid4())
@@ -362,16 +365,15 @@ async def create_past_visit(
         snapshot["bmi"] = _compute_bmi(snapshot.get("height_cm"), snapshot.get("weight_kg"))
         case_doc["fir_snapshot"] = snapshot
         case_doc["visit_type"] = snapshot["visit_type"]
-    await db.cases.insert_one(case_doc)
-    case_doc.pop("_id", None)
-
+    notes_doc = None
+    rx_doc = None
     structured_notes = payload.clinical_notes.model_dump(exclude_unset=True) if payload.clinical_notes else {}
     has_structured_notes = any(any(v.values()) if isinstance(v, dict) else v for v in structured_notes.values())
     if has_structured_notes or any([
         payload.diagnosis_summary, payload.sensitivity_allergies, payload.safety_notes,
         payload.suggestions, payload.additional_info,
     ]):
-        await db.clinical_notes.insert_one({
+        notes_doc = {
             "case_id": case_id,
             "diagnosis_summary": payload.diagnosis_summary or "",
             "sensitivity_allergies": payload.sensitivity_allergies or "",
@@ -383,10 +385,10 @@ async def create_past_visit(
             "created_at": visit_iso,
             "updated_by": user["id"],
             "updated_at": visit_iso,
-        })
+        }
 
     if payload.prescription_items:
-        await db.prescriptions.insert_one({
+        rx_doc = {
             "id": str(uuid.uuid4()),
             "case_id": case_id,
             "version_no": 1,
@@ -396,8 +398,16 @@ async def create_past_visit(
             "created_by_user_id": user["id"],
             "edited_by_pharmacy": False,
             "created_at": visit_iso,
-        })
+        }
 
+    if package:
+        return await save_historical_package_visit(payload, package, user, case_doc, notes_doc, rx_doc)
+
+    await db.cases.insert_one(dict(case_doc))
+    if notes_doc:
+        await db.clinical_notes.insert_one(dict(notes_doc))
+    if rx_doc:
+        await db.prescriptions.insert_one(dict(rx_doc))
     total = payload.consultation_amount + (payload.medicine_amount if payload.medicines_taken else 0)
     if total > 0 or payload.amount_paid > 0:
         balance = max(0, total - payload.amount_paid)

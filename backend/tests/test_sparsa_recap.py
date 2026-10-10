@@ -12,7 +12,7 @@ import requests
 
 BASE_URL = os.environ.get(
     "REACT_APP_BACKEND_URL",
-    "https://simple-enterprise-ai.preview.emergentagent.com",
+    "https://sparsa-clinic.preview.emergentagent.com",
 ).rstrip("/")
 API = f"{BASE_URL}/api"
 PWD = "Password@123"
