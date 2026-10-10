@@ -1,0 +1,61 @@
+{
+  "summary": "Executed requested backend+frontend verification for Add Past Visit -> Packages & dues. Backend coverage passed: 9 targeted iteration16 tests + 23 selected regression tests (32/32). Frontend core package-form flows loaded and field-level interactions worked, but real post-commit response-loss acceptance remains unresolved in this run: CDP response-stage drop did not surface the expected pending-retry UI state. Option-in-select warning was reproduced with exact DOM trace and attributed to preview instrumentation injecting <span> inside <option>, not source JSX.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "P0 post-commit response loss (real backend 200 commit, browser-visible response drop, same-save retry)",
+        "issue": "Not fully validated in this run. CDP interception was wired and exercised but expected pending-state selector did not appear after first save click; therefore deterministic browser-visible response-loss acceptance remains incomplete.",
+        "affected_selectors": [
+          "[data-testid='save-past-visit-btn']",
+          "[data-testid='past-package-save-pending']"
+        ]
+      },
+      {
+        "flow": "Past-visit photo pre-upload in automation",
+        "issue": "Inline tiny PNG buffer used in automation was rejected by client-side converter (format unsupported). Switching to a real JPEG file fixed pre-save photo input in the script path.",
+        "affected_selectors": [
+          "[data-testid='photo-file-input']",
+          "[data-testid='photo-error']"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration16_past_visit_packages_dues.py",
+    "/app/backend/tests/test_iteration14_four_enhancements.py",
+    "/app/backend/tests/test_iteration15_patient_history_tracking.py",
+    "/app/backend/tests/test_iteration12_req35_packages_notes_photos.py",
+    "/app/test_reports/pytest/iteration16_pastpkg_rerun.xml",
+    "/app/test_reports/pytest/iteration16_existing_regressions_rerun.xml",
+    "/app/scripts/test_past_packages_acceptance.py"
+  ],
+  "action_items": [
+    "Re-run frontend P0 acceptance using either corrected CDP continuation semantics or the approved XHR onloadend fallback hook to force exactly one post-commit response drop, then assert pending UI + exact retry payload + single case/ledger/notes/Rx/bill/attachment evidence.",
+    "Keep browser-fault injection test-only; do not add production failpoints or API mocks.",
+    "If preview instrumentation warning is user-visible/noisy, scope-fix by preventing instrumentation wrappers under native <option> children (PastVisitPackageFields.jsx line ~50 currently renders plain text only)."
+  ],
+  "critical_code_review_comments": [
+    "historical_package_service.py continues to enforce Admin/Owner-only historical package import and idempotent reservation-based retry safety without rewriting old records.",
+    "PastVisitForm.jsx correctly preserves exact pending package request for retry-same-save semantics and disables edit controls in pending/saved states.",
+    "Console warning reproduction points to preview instrumentation wrapper (<span style='display:contents'>) inserted under <option>; source component option content is text concatenation, so the warning is external to app JSX unless instrumentation is enabled in user-facing builds."
+  ],
+  "updated_files": [
+    "/app/scripts/test_past_packages_acceptance.py",
+    "/app/test_reports/iteration_16.json"
+  ],
+  "success_rate": {
+    "backend": "100% (32/32)",
+    "frontend": "70% (core interaction checks passed; P0 response-loss acceptance incomplete)"
+  },
+  "seed_data_creation": "Created UI fixture with /app/scripts/setup_iteration16_ui_fixture.py; cleaned via /app/scripts/cleanup_iteration16_ui_fixture.py.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend is green for required 32 tests. For frontend, use same fixture scripts and resume from P0 response-loss scenario. CDP run reproduced React warning and showed instrumentation-inserted <span> under <option>. Cleanup script removed marker patient/package; no production records touched.",
+  "rca of the issue": "RCA(1) Advanced browser response-loss acceptance gap: prior failures were from request forwarding/auth; this run avoided forwarding and used CDP response-stage interception, but pending-state assertion still did not materialize, so deterministic after-commit drop is not yet evidenced end-to-end. RCA(2) option/span warning: reproduced with explicit runtime trace showing injected instrumentation attributes (x-*) and a <span> child under <option>; likely preview tooling mutation, not authored JSX in PastVisitPackageFields.jsx. MOCKED/Fault-injected portions: only browser fault-injection attempts (network/response drop simulation) were used; no application API mocking was introduced."
+}
