@@ -1,0 +1,24 @@
+STEP: login as admin
+CONSOLE[info]: %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+CONSOLE[error]: Failed to load resource: the server responded with a status of 401 ()
+CONSOLE[error]: Failed to load resource: the server responded with a status of 401 ()
+STEP: open past-visit form
+CONSOLE[info]: %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+STEP: baseline checks
+STEP: fill FIR + all 17 clinical fields + package payment
+STEP: responsive overflow checks
+STEP: pre-save validity checks
+STEP: first save with response drop
+CONSOLE[error]: Failed to load resource: net::ERR_FAILED
+STEP: verify committed record exists before retry
+STEP: retry same save
+CONSOLE[error]: Failed to load resource: net::ERR_FAILED
+STEP: photo retry without re-submitting payment
+CONSOLE[error]: Failed to load resource: the server responded with a status of 404 ()
+CONSOLE[error]: Failed to load resource: the server responded with a status of 404 ()
+CONSOLE[error]: Failed to load resource: the server responded with a status of 404 ()
+CONSOLE[error]: Failed to load resource: the server responded with a status of 404 ()
+STEP: final backend assertions
+PASS: no option elements with nested children in app DOM
+No error messages found on the page
+PASS: Iteration16 acceptance browser flow complete
