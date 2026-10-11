@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api, fmtErr } from "@/lib/api";
 import StatusBadge from "@/components/StatusBadge";
@@ -17,15 +17,15 @@ export default function PharmacyCase() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
 
-  const reload = async () => {
+  const reload = useCallback(async () => {
     try {
       const { data } = await api.get(`/cases/${id}`);
       setData(data);
       setItems(data.latest_prescription?.items?.length ? data.latest_prescription.items.map(withKey) : [withKey({ ...EMPTY_ITEM })]);
       if (data.pharmacy_dispense) setDispense(data.pharmacy_dispense);
     } catch (e) { setErr(fmtErr(e)); }
-  };
-  useEffect(() => { reload(); }, [id]);
+  }, [id]);
+  useEffect(() => { reload(); }, [reload]);
 
   if (err) return <div className="p-8 text-red-700">{err}</div>;
   if (!data) return <div className="p-8 grid place-items-center text-gray-400"><Loader2 className="animate-spin" /></div>;

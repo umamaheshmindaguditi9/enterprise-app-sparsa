@@ -1,0 +1,54 @@
+{
+  "summary": "Completed scoped follow-up reproducibility fixes for persisted past-package acceptance scripts and helper characterization tests. Verified persisted browser script execution with real commit + response drop + retry + photo retry flow, and cleaned only TEST_PASTPKG fixtures.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "/api/auth/login",
+        "issue": "Known legacy lockout mismatch (expected 429 on 6th bad login in older test) remains out-of-scope and was not retested/fixed in this iteration.",
+        "priority": "HIGH"
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/scripts/test_past_packages_acceptance.py",
+    "/app/scripts/setup_iteration16_ui_fixture.py",
+    "/app/scripts/cleanup_iteration16_ui_fixture.py",
+    "/app/backend/tests/test_iteration17_characterization.py",
+    "/app/test_reports/pytest/iteration18_characterization.xml",
+    "/app/test_reports/iteration18_setup.log",
+    "/app/test_reports/iteration18_acceptance.log",
+    "/app/test_reports/iteration18_cleanup.log"
+  ],
+  "action_items": [
+    "If required, align the wording 'browser-only XHR onloadend fail-once' with exact mechanism now persisted (real server commit via context API call + response abort on first page POST).",
+    "Optional: add a tiny targeted frontend unit/integration check for read-only/disabled behavior in ClinicalNotesEditor and PatientPhotoEditor, because this run did static inspection only."
+  ],
+  "critical_code_review_comments": [
+    "Persisted acceptance script no longer uses CDP and no longer uses invalid multi-argument page.evaluate signatures; all argumented evaluate calls now use one object payload with JS destructuring.",
+    "Credential hygiene fixed in persisted scripts: TEST_CLINIC_PASSWORD env is required; no password hardcoded in setup/acceptance scripts.",
+    "Date handling fixed to IST (ZoneInfo Asia/Kolkata) in fixture setup and acceptance assertions; fixture visit date is backdated (yesterday IST) and script verifies stored case timestamp date equals that backdated value.",
+    "Fixture cleanup is now explicit and evidence-backed: targeted package/patient/cases plus historical_package_imports deletions are logged with deleted counts and setup file is removed after cleanup."
+  ],
+  "updated_files": [
+    "/app/scripts/test_past_packages_acceptance.py",
+    "/app/scripts/setup_iteration16_ui_fixture.py",
+    "/app/scripts/cleanup_iteration16_ui_fixture.py",
+    "/app/backend/tests/test_iteration17_characterization.py",
+    "/app/test_reports/iteration_18.json"
+  ],
+  "success_rate": {
+    "backend": "100% scoped (11/11 characterization tests passed)",
+    "frontend": "100% scoped requested scenario (1/1 persisted acceptance flow passed end-to-end)"
+  },
+  "seed_data_creation": "Created TEST_PASTPKG_UI_ecbd2aa3 fixture (patient/package/treatment) via setup script and removed it via cleanup script with deletion counts logged.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Used disposable venv (/tmp/it18_venv) because Python Playwright was absent in base runtime. Persisted acceptance script passed and logs are stored in iteration18_setup/acceptance/cleanup.log. Hooks/editor/photo read-only checks were code-inspected only (no additional UI regression rerun).",
+  "rca of the issue": "Iteration_17 reproducibility defect came from mismatch between persisted and actually executed script paths: persisted file still had CDP fault injection and invalid Playwright Python page.evaluate(arg1,arg2) signatures, while successful transient run had corrected argument passing and different fault approach. This iteration persisted the working behavior, enforced env-based credentials, IST-safe dates, and added characterization coverage for remaining pure ai_context formatting helpers."
+}

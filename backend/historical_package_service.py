@@ -6,6 +6,7 @@ make retries recoverable without relying on multi-document transactions.
 import hashlib
 import uuid
 from datetime import timedelta
+from typing import Any
 
 from fastapi import HTTPException
 from pymongo import ReturnDocument
@@ -13,10 +14,11 @@ from pymongo.errors import DuplicateKeyError
 
 from core import db, now_utc, next_counter, audit, ROLE_ADMIN, ROLE_OWNER_DOCTOR
 from package_models import PackagePaymentIn
+from models import PastVisitIn
 from package_service import IST, today_ist, load_package, snapshot, append_payment, paid_paise, paise
 
 
-async def validate_historical_package(payload, patient_id, user):
+async def validate_historical_package(payload: PastVisitIn, patient_id: str, user: dict[str, Any]) -> dict[str, Any]:
     # Historical import does not grant Reception/Doctor any new ledger write permission.
     if user["role"] not in (ROLE_ADMIN, ROLE_OWNER_DOCTOR):
         raise HTTPException(403, "Only Admin or the owner doctor can allocate packages in a past visit")
@@ -38,7 +40,10 @@ async def validate_historical_package(payload, patient_id, user):
     return p
 
 
-async def save_historical_package_visit(payload, package, user, case_doc, notes_doc, rx_doc):
+async def save_historical_package_visit(
+    payload: PastVisitIn, package: dict[str, Any], user: dict[str, Any],
+    case_doc: dict[str, Any], notes_doc: dict[str, Any] | None, rx_doc: dict[str, Any] | None,
+) -> dict[str, Any]:
     billing = payload.package_billing
     request_id = hashlib.sha256(f'{user["id"]}:{billing.idempotency_key}'.encode()).hexdigest()
     payment_key = f"historical:{request_id}"

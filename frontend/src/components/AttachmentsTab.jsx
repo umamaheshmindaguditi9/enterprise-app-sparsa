@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, fmtErr, API } from "@/lib/api";
 import { Loader2, Upload, FileText, Image as ImageIcon, Trash2, Download } from "lucide-react";
 
@@ -11,13 +11,13 @@ export default function AttachmentsTab({ caseId }) {
   const [err, setErr] = useState("");
   const inputRef = useRef(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const { data } = await api.get(`/cases/${caseId}/attachments`);
       setFiles(data.attachments);
     } catch (e) { setErr(fmtErr(e)); }
-  };
-  useEffect(() => { load(); }, [caseId]);
+  }, [caseId]);
+  useEffect(() => { load(); }, [load]);
 
   const onPick = async (e) => {
     const file = e.target.files?.[0];

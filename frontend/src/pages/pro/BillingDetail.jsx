@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, fmtErr } from "@/lib/api";
 import StatusBadge, { PaymentBadge } from "@/components/StatusBadge";
@@ -22,7 +22,7 @@ export default function BillingDetail() {
   const [msg, setMsg] = useState("");
   const [billingMode, setBillingMode] = useState("legacy");
 
-  const reload = async () => {
+  const reload = useCallback(async () => {
     try {
       const { data } = await api.get(`/cases/${id}`);
       setData(data);
@@ -42,8 +42,8 @@ export default function BillingDetail() {
         }));
       }
     } catch (e) { setErr(fmtErr(e)); }
-  };
-  useEffect(() => { reload(); }, [id]);
+  }, [id]);
+  useEffect(() => { reload(); }, [reload]);
 
   if (err) return <div className="p-8 text-red-700">{err}</div>;
   if (!data) return <div className="p-8 grid place-items-center text-gray-400"><Loader2 className="animate-spin" /></div>;
@@ -228,13 +228,13 @@ function PaymentProofPanel({ caseId }) {
   const [err, setErr] = useState("");
   const inputRef = useRef(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const { data } = await api.get(`/cases/${caseId}/attachments?kind=PAYMENT_PROOF`);
       setProofs(data.attachments || []);
     } catch (e) { setErr(fmtErr(e)); }
-  };
-  useEffect(() => { load(); }, [caseId]);
+  }, [caseId]);
+  useEffect(() => { load(); }, [load]);
 
   const onFile = async (e) => {
     const f = e.target.files?.[0];

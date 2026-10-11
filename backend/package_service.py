@@ -10,62 +10,77 @@ import unicodedata
 import uuid
 from datetime import date, datetime, timezone, timedelta
 from decimal import Decimal
+from typing import Any
 from dateutil.relativedelta import relativedelta
 from fastapi import HTTPException
 from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 from core import db, now_utc, next_counter, audit
+from package_models import PackageIn, PackagePaymentIn, ReversalIn
+
+Record = dict[str, Any]
 
 IST = timezone(timedelta(hours=5, minutes=30))
 SNAPSHOT_FIELDS = ("id", "package_uid", "patient_id", "treatment_id", "treatment_name", "name", "duration_value", "duration_unit", "start_date", "end_date", "amount_paise")
 
 
-def today_ist():
+def today_ist() -> date:
     return now_utc().astimezone(IST).date()
 
 
-def treatment_key(name):
+def treatment_key(name: str) -> str:
     return re.sub(r"[\W_]+", " ", unicodedata.normalize("NFKC", name).casefold()).strip()
 
 
-def paise(value):
+def paise(value: Decimal | str | int | float) -> int:
     return int(Decimal(str(value)) * 100)
 
 
-def paid_paise(package):
+def paid_paise(package: Record) -> int:
     return sum(t["amount_paise"] for t in package.get("transactions", []))
 
 
-def snapshot(package):
+def snapshot(package: Record) -> Record:
     return {k: package[k] for k in SNAPSHOT_FIELDS}
 
 
-def package_view(package, include_ledger=False):
+def _package_status(lifecycle: str, start: date, end: date, today: date) -> str:
+    if lifecycle in ("COMPLETED", "RENEWED"):
+        return lifecycle
+    if today < start:
+        return "UPCOMING"
+    if today >= end:
+        return "EXPIRED"
+    return "ENDING_SOON" if (end - today).days <= 30 else "ACTIVE"
+
+
+def _renewal_status(lifecycle: str, status: str, end: date, today: date, balance: int) -> str:
+    if lifecycle == "RENEWED":
+        return "RENEWED"
+    if today >= end:
+        return "REQUIRES_FOLLOWUP" if balance > 0 else "RENEWAL_DUE"
+    return "ENDING_SOON" if status == "ENDING_SOON" else "NOT_DUE"
+
+
+def _payment_status(paid: int, balance: int) -> str:
+    if paid == 0:
+        return "UNPAID"
+    return "FULLY_PAID" if balance == 0 else "PARTIALLY_PAID"
+
+
+def package_view(package: Record, include_ledger: bool = False) -> Record:
     p = {k: v for k, v in package.items() if k not in ("_id", "transactions", "active_slot")}
     paid = paid_paise(package)
     balance = package["amount_paise"] - paid
     today = today_ist()
     start, end = date.fromisoformat(p["start_date"]), date.fromisoformat(p["end_date"])
     lifecycle = p.get("lifecycle", "OPEN")
-    if lifecycle in ("COMPLETED", "RENEWED"):
-        status = lifecycle
-    elif today < start:
-        status = "UPCOMING"
-    elif today >= end:
-        status = "EXPIRED"
-    elif (end - today).days <= 30:
-        status = "ENDING_SOON"
-    else:
-        status = "ACTIVE"
-    renewal = "RENEWED" if lifecycle == "RENEWED" else "NOT_DUE"
-    if lifecycle != "RENEWED" and today >= end:
-        renewal = "REQUIRES_FOLLOWUP" if balance > 0 else "RENEWAL_DUE"
-    elif status == "ENDING_SOON":
-        renewal = "ENDING_SOON"
+    status = _package_status(lifecycle, start, end, today)
+    renewal = _renewal_status(lifecycle, status, end, today, balance)
     positives = [t for t in package.get("transactions", []) if t["amount_paise"] > 0]
     last = max(positives, key=lambda t: (t["payment_date"], t["created_at"]), default=None)
     p.update(amount=p["amount_paise"] / 100, total_paid=paid / 100, outstanding=balance / 100,
-             payment_status="UNPAID" if paid == 0 else "FULLY_PAID" if balance == 0 else "PARTIALLY_PAID",
+             payment_status=_payment_status(paid, balance),
              package_status=status, renewal_status=renewal, renewal_date=p["end_date"],
              renewal_eligible=today >= end and balance == 0 and lifecycle != "RENEWED",
              last_payment_date=last["payment_date"] if last else None,
@@ -76,14 +91,14 @@ def package_view(package, include_ledger=False):
     return p
 
 
-async def load_package(package_id):
+async def load_package(package_id: str | None) -> Record:
     p = await db.packages.find_one({"id": package_id}, {"_id": 0})
     if not p:
         raise HTTPException(404, "Package not found")
     return p
 
 
-async def init_package_indexes():
+async def init_package_indexes() -> None:
     await db.treatments.create_index("normalized_name", unique=True)
     await db.treatments.create_index("id", unique=True)
     await db.packages.create_index("id", unique=True)
@@ -93,7 +108,7 @@ async def init_package_indexes():
     await db.payments.create_index("case_id", unique=True, partialFilterExpression={"kind": "PACKAGE_BILL"}, name="package_bill_case_unique")
 
 
-async def create_package_record(payload, user, previous=None):
+async def create_package_record(payload: PackageIn, user: Record, previous: Record | None = None) -> Record:
     patient = await db.patients.find_one({"id": payload.patient_id}, {"_id": 0, "id": 1})
     treatment = await db.treatments.find_one({"id": payload.treatment_id, "active": True}, {"_id": 0})
     if not patient or not treatment:
@@ -132,7 +147,7 @@ async def create_package_record(payload, user, previous=None):
     return record
 
 
-async def append_payment(package_id, payload, user):
+async def append_payment(package_id: str, payload: PackagePaymentIn, user: Record) -> Record:
     p = await load_package(package_id)
     amount = paise(payload.amount)
     fingerprint = {"amount_paise": amount, "payment_date": payload.payment_date.isoformat(), "payment_mode": payload.payment_mode,
@@ -167,7 +182,7 @@ async def append_payment(package_id, payload, user):
     return updated
 
 
-async def reverse_payment(package_id, transaction_id, payload, user):
+async def reverse_payment(package_id: str, transaction_id: str, payload: ReversalIn, user: Record) -> Record:
     p = await load_package(package_id)
     tx = next((t for t in p["transactions"] if t["id"] == transaction_id and t["kind"] == "PAYMENT"), None)
     if not tx:
@@ -189,7 +204,7 @@ async def reverse_payment(package_id, transaction_id, payload, user):
     return result
 
 
-async def package_bill_view(bill):
+async def package_bill_view(bill: Record | None) -> Record | None:
     if not bill or bill.get("kind") != "PACKAGE_BILL":
         return bill
     p = await load_package(bill["package_id"])

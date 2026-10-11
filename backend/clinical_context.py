@@ -1,5 +1,8 @@
 """Shared text representation; never reinterpret legacy notes as a new clinical diagnosis."""
-def homeopathic_notes_text(note):
+from typing import Any
+
+
+def homeopathic_notes_text(note: dict[str, Any] | None) -> str:
     note = note or {}
     lines = []
     for key in ("chief_complaint", "presenting_complaint", "past_history", "family_history", "personal_history", "life_style", "notes"):

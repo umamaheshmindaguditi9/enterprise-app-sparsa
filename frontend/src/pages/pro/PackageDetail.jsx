@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, fmtErr } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,8 +18,8 @@ export default function PackageDetail() {
   const [reversal, setReversal] = useState(null), [reason, setReason] = useState("");
   const privileged = ["ADMIN", "OWNER_DOCTOR"].includes(user?.role);
   const readOnly = user?.role === "DOCTOR";
-  const load = async () => { const r = await api.get(`/packages/${id}`); setData(r.data); };
-  useEffect(() => { setData(null); setError(""); setRenewing(false); load().catch(e => setError(fmtErr(e))); }, [id]);
+  const load = useCallback(async () => { const r = await api.get(`/packages/${id}`); setData(r.data); }, [id]);
+  useEffect(() => { setData(null); setError(""); setRenewing(false); load().catch(e => setError(fmtErr(e))); }, [load]);
   const action = async (path, body) => { setBusy(true); setError(""); try { await api.post(path, body); await load(); return true; } catch (e) { setError(fmtErr(e)); return false; } finally { setBusy(false); } };
   if (!data) return <div className="p-6" data-testid="package-detail-loading">{error || <Loader2 className="animate-spin" />}</div>;
   const p = data.package;

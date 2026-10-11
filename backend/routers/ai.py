@@ -12,8 +12,12 @@ from core import (
 )
 from models import ParseNotesIn, AdvisoryIn
 import prompts
-from clinical_context import homeopathic_notes_text
 from fir_parsing import normalize_fir_draft, normalize_clinical_draft
+from clinical_context import homeopathic_notes_text
+from ai_context import (
+    dossier_profile, dossier_past_visit, dossier_current_visit, dossier_attachments,
+    recap_profile, recap_visit, summarize_text, advice_text, instructions_text,
+)
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -112,34 +116,19 @@ async def ai_assist(
     c = await load_case_for_user(case_id, user)
     patient = await db.patients.find_one({"id": c["patient_id"]}, {"_id": 0})
     note = await db.clinical_notes.find_one({"case_id": case_id}, {"_id": 0})
-    latest = await db.prescriptions.find({"case_id": case_id}).sort("version_no", -1).limit(1).to_list(1)
+    latest = await db.prescriptions.find({"case_id": case_id}, {"_id": 0}).sort("version_no", -1).limit(1).to_list(1)
     latest_p = latest[0] if latest else None
     lang = patient.get("preferred_language", "EN") if patient else "EN"
 
     if action == "summarize":
         system = prompts.case_summarize()
-        user_text = (
-            f"Patient: Age {patient.get('age', '?')}, Gender: {patient.get('gender', '?')}\n"
-            f"Known allergies: {(note or {}).get('sensitivity_allergies') or 'None reported'}\n"
-            f"Complaint: {c['complaint_text']}"
-        )
+        user_text = summarize_text(c, patient or {}, note or {})
     elif action == "advice":
         system = prompts.case_advice(lang)
-        med_list = ", ".join([(it.get("medicine_name") or "?") for it in (latest_p or {}).get("items", [])]) or "(none yet)"
-        user_text = (
-            f"Diagnosis: {(note or {}).get('diagnosis_summary') or c['complaint_text']}\n"
-            f"Medicines: {med_list}\n"
-            f"Follow-up date: {c.get('next_followup_at') or 'Not set'}"
-        )
+        user_text = advice_text(c, note or {}, latest_p or {})
     elif action == "instructions":
         system = prompts.case_instructions(lang)
-        lines = []
-        for it in (latest_p or {}).get("items", []):
-            lines.append(
-                f"- {it.get('medicine_name', '')} {it.get('potency', '')} — {it.get('dosage', '')} "
-                f"{it.get('frequency', '')} for {it.get('duration_days') or '?'} days. {it.get('instructions', '')}"
-            )
-        user_text = "\n".join(lines) or "(no items)"
+        user_text = instructions_text(latest_p or {})
     else:  # decision_support — full clinical dossier
         system = prompts.case_decision_support()
         user_text = await _build_clinical_dossier(c, patient, note, latest_p)
@@ -161,20 +150,7 @@ async def ai_assist(
 async def _build_clinical_dossier(current_case: dict, patient: dict, current_note: dict, current_rx: dict) -> str:
     """Assemble a compact chronological clinical dossier for the decision-support model."""
     p = patient or {}
-    bmi = p.get("bmi") or "—"
-    lines = [
-        "=== PATIENT PROFILE ===",
-        f"Name: {p.get('first_name', '')} {p.get('last_name', '')}  ·  UID: {p.get('patient_uid', '')}",
-        f"Age: {p.get('age', '?')} · Gender: {p.get('gender', '?')} · Marital: {p.get('marital_status') or '—'}",
-        f"Phone: {p.get('phone', '—')} · Language: {p.get('preferred_language') or 'EN'}",
-        f"Occupation: {p.get('occupation') or '—'} · Blood group: {p.get('blood_group') or '—'}",
-        f"Height: {p.get('height_cm') or '—'} cm · Weight: {p.get('weight_kg') or '—'} kg · BMI: {bmi}",
-        f"Address: {p.get('address') or '—'}",
-        f"Chronic conditions / history flags: {p.get('chronic_conditions') or '—'}",
-        f"Family history: {p.get('family_history') or '—'}",
-        f"Known allergies (patient-level): {p.get('allergies') or '—'}",
-        "",
-    ]
+    lines = dossier_profile(p)
 
     # All past cases (chronological, excluding current) — cap to most recent 12 to bound latency
     all_cases = await db.cases.find(
@@ -190,61 +166,18 @@ async def _build_clinical_dossier(current_case: dict, patient: dict, current_not
     header += ") ==="
     lines.append(header)
     for i, c in enumerate(past_cases, 1):
-        when = (c.get("created_at") or "")[:10]
         n = await db.clinical_notes.find_one({"case_id": c["id"]}, {"_id": 0}) or {}
         rx = await db.prescriptions.find({"case_id": c["id"]}, {"_id": 0}).sort("version_no", -1).limit(1).to_list(1)
-        med_list = "; ".join([
-            f"{it.get('medicine_name', '').strip()} {it.get('potency', '').strip()} "
-            f"{it.get('dosage', '').strip()} {it.get('frequency', '').strip()}".strip()
-            for it in ((rx[0] if rx else {}).get("items") or [])
-        ]).strip("; ") or "—"
-        lines.append(
-            f"[Visit {i} · {when} · type {c.get('visit_type') or '—'}]\n"
-            f"  Complaint: {(c.get('complaint_text') or '—')[:250]}\n"
-            f"  Diagnosis: {(n.get('diagnosis_summary') or '—')[:250]}\n"
-            f"  Allergies: {(n.get('sensitivity_allergies') or '—')[:150]}\n"
-            f"  Rx: {med_list[:250]}\n"
-            f"  Follow-up: {c.get('next_followup_date') or '—'}"
-        )
-
-        lines.append(homeopathic_notes_text(n)[:2000])
+        lines.extend(dossier_past_visit(i, c, n, rx[0] if rx else {}))
 
     # Current visit block
-    lines.append("")
-    lines.append("=== CURRENT VISIT (today, awaiting decision) ===")
-    lines.append(f"Case: {current_case.get('case_uid')} · type {current_case.get('visit_type') or '—'} · status {current_case.get('status')}")
-    lines.append(f"Complaint: {current_case.get('complaint_text') or '—'}")
-    if current_note:
-        lines.append(homeopathic_notes_text(current_note))
-        lines.append(f"Working diagnosis: {current_note.get('diagnosis_summary') or '—'}")
-        lines.append(f"Sensitivity/allergies: {current_note.get('sensitivity_allergies') or '—'}")
-        lines.append(f"Safety notes: {current_note.get('safety_notes') or '—'}")
-        lines.append(f"Doctor's suggestions so far: {current_note.get('suggestions') or '—'}")
-        lines.append(f"Additional info: {current_note.get('additional_info') or '—'}")
-    if current_rx:
-        cur_meds = "; ".join([
-            f"{it.get('medicine_name', '')} {it.get('potency', '')} {it.get('dosage', '')} "
-            f"{it.get('frequency', '')} x {it.get('duration_days') or '?'}d"
-            for it in (current_rx.get("items") or [])
-        ]) or "—"
-        lines.append(f"Draft Rx on file: {cur_meds}")
+    lines.extend(dossier_current_visit(current_case, current_note, current_rx))
 
     # Attachments metadata (no OCR — just tell the model what exists)
     atts = await db.attachments.find(
         {"case_id": current_case.get("id"), "deleted_at": None}, {"_id": 0}
     ).to_list(50)
-    if atts:
-        lines.append("")
-        lines.append(f"=== ATTACHMENTS ON THIS CASE ({len(atts)}) ===")
-        for a in atts:
-            kind = "image" if (a.get("content_type") or "").startswith("image/") else "document"
-            lines.append(
-                f"- {a.get('original_filename', '')} ({kind}, {a.get('content_type', '')}, "
-                f"{int((a.get('size_bytes') or 0) / 1024)} KB, uploaded {a.get('created_at', '')[:10]})"
-            )
-        lines.append("(Attachment CONTENTS are not embedded — treat these as external evidence "
-                     "the doctor has on hand. Reference them by filename if relevant, and note "
-                     "in Section 13 if their content would materially change the plan.)")
+    lines.extend(dossier_attachments(atts))
 
     return "\n".join(lines)
 
@@ -278,41 +211,11 @@ async def ai_visit_recap(
         raise HTTPException(status_code=404, detail="No accessible visits for this patient")
 
     # Build a compact, chronological narrative
-    bmi_str = f"{patient.get('bmi')}" if patient.get('bmi') else "—"
-    sources = ", ".join(patient.get("sources") or []) or "—"
-    lines = [
-        "=== PATIENT PROFILE ===",
-        f"Name: {patient.get('first_name', '')} {patient.get('last_name', '')}",
-        f"UID: {patient.get('patient_uid', '')}",
-        f"Age: {patient.get('age', '?')} · Gender: {patient.get('gender', '?')} · Marital status: {patient.get('marital_status') or '—'}",
-        f"Phone: {patient.get('phone', '—')} · Language: {patient.get('preferred_language') or 'EN'}",
-        f"Address: {patient.get('address') or '—'}",
-        f"Height: {patient.get('height_cm') or '—'} cm · Weight: {patient.get('weight_kg') or '—'} kg · BMI: {bmi_str}",
-        f"Acquisition sources: {sources}",
-        f"Referral name: {patient.get('referral_name') or '—'}",
-        f"Total visits on record: {len(cases)}",
-        "",
-        "=== VISIT HISTORY (chronological) ===",
-    ]
+    lines = recap_profile(patient, len(cases))
     for i, c in enumerate(cases, 1):
-        when = c.get("created_at", "")[:10]
         note = await db.clinical_notes.find_one({"case_id": c["id"]}, {"_id": 0}) or {}
         rx = await db.prescriptions.find({"case_id": c["id"]}, {"_id": 0}).sort("version_no", -1).limit(1).to_list(1)
-        med_list = ", ".join([
-            f"{it.get('medicine_name', '')} {it.get('potency', '')} {it.get('dosage', '')} {it.get('frequency', '')}".strip()
-            for it in ((rx[0] if rx else {}).get("items") or [])
-        ]).strip(", ") or "—"
-        lines.append(
-            f"Visit {i} — {when} · type {c.get('visit_type') or '—'} · status {c.get('status') or '—'}\n"
-            f"  Complaint: {(c.get('complaint_text') or '—')[:300]}\n"
-            f"  Diagnosis summary: {((note.get('diagnosis_summary')) or '—')[:300]}\n"
-            f"  Allergies / sensitivity: {((note.get('sensitivity_allergies')) or '—')[:200]}\n"
-            f"  Doctor's suggestions: {((note.get('suggestions')) or '—')[:200]}\n"
-            f"  Additional notes: {((note.get('additional_info')) or '—')[:200]}\n"
-            f"  Rx given: {med_list[:300]}\n"
-            f"  Follow-up date set: {c.get('next_followup_date') or '—'}"
-        )
-        lines.append(homeopathic_notes_text(note)[:2000])
+        lines.extend(recap_visit(i, c, note, rx[0] if rx else {}))
     narrative = "\n".join(lines)
 
     lang = patient.get("preferred_language", "EN")

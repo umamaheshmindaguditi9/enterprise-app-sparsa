@@ -6,16 +6,17 @@ import time
 import pytest
 import requests
 
-BASE = os.environ.get("REACT_APP_BACKEND_URL", "https://sparsa-clinic.preview.emergentagent.com").rstrip("/")
+BASE = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
+TEST_PASSWORD = os.environ["TEST_CLINIC_PASSWORD"]
 API = f"{BASE}/api"
 
 CREDS = {
-    "admin": ("admin1", "Password@123"),
-    "owner_doc": ("jyothi", "Password@123"),
-    "doctor": ("hemanth", "Password@123"),
-    "reception": ("reception1", "Password@123"),
-    "pharmacy": ("pharmacy1", "Password@123"),
-    "pro": ("pro1", "Password@123"),
+    "admin": ("admin1", TEST_PASSWORD),
+    "owner_doc": ("jyothi", TEST_PASSWORD),
+    "doctor": ("hemanth", TEST_PASSWORD),
+    "reception": ("reception1", TEST_PASSWORD),
+    "pharmacy": ("pharmacy1", TEST_PASSWORD),
+    "pro": ("pro1", TEST_PASSWORD),
 }
 
 
@@ -85,7 +86,8 @@ class TestMessagingSettingsLifecycle:
     """Configure → verify masked + status flips → clear → verify removed."""
 
     SID = "ACtestSID1234567890abcdef1234567890"
-    TOKEN = "twilio-auth-token-xyz-ABCDEFGHIJK"
+    # A disposable synthetic token supplied by the test runner, never a live provider key.
+    TOKEN = os.environ["TEST_TWILIO_AUTH_TOKEN"]
     FROM = "+15005550006"
 
     def test_empty_post_400(self, s_admin):

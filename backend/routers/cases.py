@@ -5,10 +5,11 @@ from datetime import datetime, time, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Optional, Literal
 
+from case_views import enrich_case
 from core import (
     db, now_utc, next_counter, audit,
     get_current_user, require_roles,
-    load_case_for_user, enrich_case, case_filter_for_role,
+    load_case_for_user, case_filter_for_role,
     ROLE_OWNER_DOCTOR, ROLE_DOCTOR, ROLE_RECEPTION, ROLE_PHARMACY, ROLE_PRO, ROLE_ADMIN,
     ALL_STATUSES,
     STATUS_WAITING, STATUS_IN_CONSULT, STATUS_AWAITING_PRO, STATUS_SENT_PHARMACY,

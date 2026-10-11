@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, Loader2, RotateCcw } from "lucide-react";
 import { api, fmtErr, fmtIST } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { stableEntries } from "@/lib/stableEntries";
 
 export const usePatientHistory = (patientId, caseId) => {
   const [result, setResult] = useState(null), [error, setError] = useState(null), [loading, setLoading] = useState(false);
@@ -29,7 +30,7 @@ const EntryText = ({ label, value, testId }) => <div className="min-w-0"><dt cla
 
 const HistoricalPrescription = ({ prescription, prefix }) => <div className="mt-3 border-l-2 border-teal-200 pl-3" data-testid={`${prefix}-prescription-${prescription.id}`}>
   <p className="text-xs text-gray-500 mb-2" data-testid={`${prefix}-version-${prescription.id}`}>Prescription v{prescription.version_no} · {fmtIST(prescription.created_at)}{prescription.edited_by_pharmacy ? " · Pharmacy revision" : ""}</p>
-  {prescription.items?.length ? <ul className="space-y-3">{prescription.items.map((item, index) => <li key={index} className="text-sm min-w-0" data-testid={`${prefix}-medicine-${prescription.id}-${index}`}>
+  {prescription.items?.length ? <ul className="space-y-3">{stableEntries(prescription.items).map(({ value: item, key }, index) => <li key={key} className="text-sm min-w-0" data-testid={`${prefix}-medicine-${prescription.id}-${index}`}>
     <div className="font-medium text-gray-900 break-words">{item.medicine_name} {item.potency}</div>
     <div className="text-gray-600 break-words">{[item.dosage, item.frequency, item.duration_days !== null && item.duration_days !== undefined ? `${item.duration_days} days` : null].filter(Boolean).join(" · ")}</div>
     {item.instructions && <p className="text-gray-600 whitespace-pre-wrap break-words">{item.instructions}</p>}

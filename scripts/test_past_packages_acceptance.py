@@ -1,7 +1,7 @@
-"""Iteration 16 acceptance browser test for Add Past Visit -> Packages & dues.
+"""Persisted acceptance browser test for Add Past Visit -> Packages & dues.
 
 Focus:
-- Real backend commit + browser response-loss on first save (CDP response-stage fault)
+- Real backend commit via the authenticated browser context, then first-response abort
 - Retry same save path (idempotent replay, no duplicate records)
 - Photo upload failure then successful retry without re-saving visit payment
 - Package/date/payment UI checks + responsive overflow checks
@@ -10,22 +10,58 @@ Focus:
 from __future__ import annotations
 
 import asyncio
-import base64
 import json
+import os
+from datetime import datetime
+from io import BytesIO
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from playwright.async_api import async_playwright
+from PIL import Image
 
 
 SETUP_JSON = Path("/app/test_reports/iteration16_ui_setup.json")
-BASE_URL = "https://sparsa-clinic.preview.emergentagent.com"
+ENV_FRONTEND = Path("/app/frontend/.env")
 
 
-def _tiny_png() -> bytes:
-    # 1x1 PNG
-    return base64.b64decode(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+X2JYAAAAASUVORK5CYII="
-    )
+def _read_env_value(path: Path, key: str) -> str | None:
+    if not path.exists():
+        return None
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        if k.strip() == key:
+            return v.strip().strip('"').strip("'")
+    return None
+
+
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL") or _read_env_value(ENV_FRONTEND, "REACT_APP_BACKEND_URL")
+if not BASE_URL:
+    raise RuntimeError("REACT_APP_BACKEND_URL is required")
+
+TEST_PASSWORD = os.environ.get("TEST_CLINIC_PASSWORD")
+if not TEST_PASSWORD:
+    raise RuntimeError("TEST_CLINIC_PASSWORD is required")
+
+
+def _today_ist_iso() -> str:
+    return datetime.now(ZoneInfo("Asia/Kolkata")).date().isoformat()
+
+
+def _iso_to_ist_date(iso_value: str | None) -> str | None:
+    if not iso_value:
+        return None
+    parsed = datetime.fromisoformat(iso_value.replace("Z", "+00:00"))
+    return parsed.astimezone(ZoneInfo("Asia/Kolkata")).date().isoformat()
+
+
+def _valid_png_bytes() -> bytes:
+    buf = BytesIO()
+    Image.new("RGB", (12, 12), color=(0, 128, 128)).save(buf, format="PNG")
+    return buf.getvalue()
 
 
 async def run() -> int:
@@ -37,6 +73,7 @@ async def run() -> int:
     patient_id = setup["patient_id"]
     package_id = setup["package_id"]
     marker = setup["marker"]
+    fixture_visit_date = setup.get("visit_date")
 
     complaint_marker = f"{marker} CDP SAVE"
     clinical_values = {
@@ -70,6 +107,7 @@ async def run() -> int:
         post_response_bodies: list[dict] = []
         request_urls: list[str] = []
         counters = {"past_visit_posts": 0, "photo_upload_posts": 0}
+        xhr_drop_state = {"dropped": False, "status": None, "response_json": None, "target_url": None, "trigger": None}
 
         async def _capture_response(resp):
             try:
@@ -95,6 +133,30 @@ async def run() -> int:
 
         page.on("request", _capture_request)
 
+        # One-time response-loss fault: execute real POST, capture 200 JSON, then abort response delivery.
+        async def past_visit_route(route):
+            req = route.request
+            if req.method == "POST" and "/api/patients/" in req.url and "/past-visit" in req.url and not xhr_drop_state["dropped"]:
+                payload_text = req.post_data or "{}"
+                real = await context.request.post(
+                    req.url,
+                    data=payload_text,
+                    headers={"content-type": "application/json"},
+                )
+                xhr_drop_state["status"] = real.status
+                xhr_drop_state["target_url"] = req.url
+                xhr_drop_state["trigger"] = "authenticated-context-commit-then-route-abort"
+                try:
+                    xhr_drop_state["response_json"] = await real.json()
+                except Exception:
+                    xhr_drop_state["response_json"] = None
+                xhr_drop_state["dropped"] = True
+                await route.abort(error_code="failed")
+                return
+            await route.continue_()
+
+        await page.route("**/api/patients/*/past-visit", past_visit_route)
+
         # First attachment upload should fail; retry should succeed.
         photo_fail_once = {"done": False}
 
@@ -111,7 +173,7 @@ async def run() -> int:
         print("STEP: login as admin")
         await page.goto(f"{BASE_URL}/login", wait_until="domcontentloaded")
         await page.fill('[data-testid="login-username-input"]', "admin1")
-        await page.fill('[data-testid="login-password-input"]', "Password@123")
+        await page.fill('[data-testid="login-password-input"]', TEST_PASSWORD)
         await page.click('[data-testid="login-submit-button"]', force=True)
         await page.wait_for_timeout(700)
 
@@ -121,56 +183,26 @@ async def run() -> int:
 
         print("STEP: baseline checks")
         baseline_pkg = await page.evaluate(
-            """async (pid) => {
-                const r = await fetch(`/api/packages/${pid}`, { credentials: 'include' });
+            """async ({ packageId }) => {
+                const r = await fetch(`/api/packages/${packageId}`, { credentials: 'include' });
                 const d = await r.json();
                 return { status: r.status, package: d.package };
             }""",
-            package_id,
+            {"packageId": package_id},
         )
         if baseline_pkg.get("status") != 200:
             raise RuntimeError(f"Failed baseline package fetch: {baseline_pkg}")
         baseline_transactions = len(baseline_pkg["package"].get("transactions", []))
+        package_start_date = baseline_pkg["package"].get("start_date")
+        if not package_start_date:
+            raise RuntimeError("Package start date missing in baseline payload")
 
-        # CDP response-stage fault injection for first successful past-visit POST.
-        print("STEP: enable CDP response-loss for first 200 past-visit response")
-        cdp = await context.new_cdp_session(page)
-        await cdp.send(
-            "Fetch.enable",
-            {
-                "patterns": [
-                    {
-                        "urlPattern": "*/api/patients/*/past-visit",
-                        "requestStage": "Response",
-                    }
-                ]
-            },
-        )
-        cdp_state = {"dropped": False, "status": None, "response_body": None}
-
-        async def on_paused(params):
-            rid = params["requestId"]
-            status = params.get("responseStatusCode")
-            if cdp_state["dropped"]:
-                await cdp.send("Fetch.continueResponse", {"requestId": rid})
-                return
-            if status == 200 and "/api/patients/" in params.get("request", {}).get("url", "") and "/past-visit" in params.get("request", {}).get("url", ""):
-                cdp_state["status"] = status
-                try:
-                    body = await cdp.send("Fetch.getResponseBody", {"requestId": rid})
-                    raw = body.get("body", "")
-                    if body.get("base64Encoded"):
-                        raw = base64.b64decode(raw).decode("utf-8", "ignore")
-                    cdp_state["response_body"] = json.loads(raw) if raw else None
-                except Exception:
-                    cdp_state["response_body"] = None
-                cdp_state["dropped"] = True
-                await cdp.send("Fetch.failRequest", {"requestId": rid, "errorReason": "Failed"})
-                await cdp.send("Fetch.disable")
-                return
-            await cdp.send("Fetch.continueResponse", {"requestId": rid})
-
-        cdp.on("Fetch.requestPaused", lambda p: asyncio.create_task(on_paused(p)))
+        today_ist = _today_ist_iso()
+        payment_date = fixture_visit_date or today_ist
+        if payment_date < package_start_date:
+            payment_date = package_start_date
+        if payment_date > today_ist:
+            payment_date = today_ist
 
         print("STEP: fill FIR + all 17 clinical fields + package payment")
         await page.fill('[data-testid="chief-complaint-input"]', complaint_marker)
@@ -183,10 +215,14 @@ async def run() -> int:
         for test_id, value in clinical_values.items():
             await page.fill(f'[data-testid="{test_id}"]', value)
 
+        marital_value = await page.locator('[data-testid="marital-select"]').input_value()
+        if not marital_value:
+            await page.select_option('[data-testid="marital-select"]', value="SINGLE")
+
         await page.set_input_files('[data-testid="photo-file-input"]', {
-            "name": "tiny.png",
+            "name": "generated.png",
             "mimeType": "image/png",
-            "buffer": _tiny_png(),
+            "buffer": _valid_png_bytes(),
         })
         await page.wait_for_selector('[data-testid="fir-photo-ready"]', timeout=5000)
 
@@ -195,9 +231,12 @@ async def run() -> int:
         await page.select_option('[data-testid="past-package-select"]', value=package_id)
         await page.fill('[data-testid="past-package-payment-amount"]', "123")
         await page.fill('[data-testid="past-package-payment-reference"]', f"{marker}-CDP-REF")
-        await page.fill('[data-testid="past-package-payment-date"]', "2024-09-10")
+        await page.fill('[data-testid="past-package-payment-date"]', payment_date)
         await page.select_option('[data-testid="past-package-payment-mode"]', value="CASH")
         await page.check('[data-testid="past-package-medicines-taken"]', force=True)
+
+        if fixture_visit_date:
+            await page.fill('[data-testid="visit-date"]', fixture_visit_date)
 
         # Responsive overflow checks with package selected
         print("STEP: responsive overflow checks")
@@ -217,24 +256,43 @@ async def run() -> int:
 
         await page.set_viewport_size({"width": 1440, "height": 1024})
 
+        print("STEP: pre-save validity checks")
+        save_disabled = await page.locator('[data-testid="save-past-visit-btn"]').is_disabled()
+        validity = await page.evaluate(
+            """() => {
+                const form = document.querySelector('[data-testid="past-visit-form"]');
+                if (!form) return { exists: false, valid: false, invalid: [{ reason: 'form-not-found' }] };
+                const invalid = Array.from(form.querySelectorAll(':invalid')).map(el => ({
+                    tag: el.tagName,
+                    testid: el.getAttribute('data-testid') || null,
+                    name: el.getAttribute('name') || null,
+                    type: el.getAttribute('type') || null,
+                    value: el.value,
+                    validationMessage: el.validationMessage,
+                }));
+                return { exists: true, valid: form.checkValidity(), invalid };
+            }"""
+        )
+        if save_disabled or not validity.get("valid"):
+            raise RuntimeError(f"Save blocked before click. disabled={save_disabled}, validity={validity}")
+
         print("STEP: first save with response drop")
         await page.click('[data-testid="save-past-visit-btn"]', force=True)
         await page.wait_for_selector('[data-testid="past-package-save-pending"]', timeout=15000)
 
-        if cdp_state["status"] != 200 or not cdp_state["dropped"]:
-            raise RuntimeError(f"CDP response-drop did not capture real 200 response: {cdp_state}")
+        if xhr_drop_state.get("status") != 200 or not xhr_drop_state.get("dropped"):
+            raise RuntimeError(f"Response-drop did not capture real 200 response: {xhr_drop_state}")
 
         # committed before retry
         print("STEP: verify committed record exists before retry")
         timeline_before_retry = await page.evaluate(
-            """async (pid, marker) => {
-                const r = await fetch(`/api/patients/${pid}/timeline`, { credentials: 'include' });
+            """async ({ patientId, marker }) => {
+                const r = await fetch(`/api/patients/${patientId}/timeline`, { credentials: 'include' });
                 const d = await r.json();
                 const rows = (d.timeline || []).filter(x => (x.case?.complaint_text || '') === marker);
                 return { status: r.status, matches: rows.map(x => x.case?.id) };
             }""",
-            patient_id,
-            complaint_marker,
+            {"patientId": patient_id, "marker": complaint_marker},
         )
         if timeline_before_retry.get("status") != 200 or len(timeline_before_retry.get("matches", [])) != 1:
             raise RuntimeError(f"Expected exactly one committed case before retry, got: {timeline_before_retry}")
@@ -251,19 +309,18 @@ async def run() -> int:
         if len(post_payloads) != 2 or post_payloads[0] != post_payloads[1]:
             raise RuntimeError("Retry request body mismatch; expected exact same payload and idempotency key")
 
-        first_case = (cdp_state.get("response_body") or {}).get("case", {}).get("id")
+        first_case = (xhr_drop_state.get("response_json") or {}).get("case", {}).get("id")
         if not first_case:
             raise RuntimeError("Could not extract first committed case id from dropped 200 response")
 
         timeline_after_retry = await page.evaluate(
-            """async (pid, marker) => {
-                const r = await fetch(`/api/patients/${pid}/timeline`, { credentials: 'include' });
+            """async ({ patientId, marker }) => {
+                const r = await fetch(`/api/patients/${patientId}/timeline`, { credentials: 'include' });
                 const d = await r.json();
                 const rows = (d.timeline || []).filter(x => (x.case?.complaint_text || '') === marker);
                 return { status: r.status, matches: rows.map(x => x.case?.id) };
             }""",
-            patient_id,
-            complaint_marker,
+            {"patientId": patient_id, "marker": complaint_marker},
         )
         if timeline_after_retry.get("status") != 200:
             raise RuntimeError(f"Timeline fetch failed after retry: {timeline_after_retry}")
@@ -287,7 +344,7 @@ async def run() -> int:
 
         print("STEP: final backend assertions")
         details = await page.evaluate(
-            """async (caseId, packageId) => {
+            """async ({ caseId, packageId }) => {
                 const caseResp = await fetch(`/api/cases/${caseId}`, { credentials: 'include' });
                 const caseData = await caseResp.json();
                 const attResp = await fetch(`/api/cases/${caseId}/attachments`, { credentials: 'include' });
@@ -303,8 +360,7 @@ async def run() -> int:
                     pkgData,
                 };
             }""",
-            first_case,
-            package_id,
+            {"caseId": first_case, "packageId": package_id},
         )
         if details["case_status"] != 200:
             raise RuntimeError(f"Case details fetch failed: {details['case_status']}")
@@ -322,6 +378,9 @@ async def run() -> int:
 
         if case_data.get("case", {}).get("id") != first_case:
             raise RuntimeError("Unexpected case id in final details")
+        stored_visit_ist_date = _iso_to_ist_date(case_data.get("case", {}).get("created_at"))
+        if fixture_visit_date and stored_visit_ist_date != fixture_visit_date:
+            raise RuntimeError(f"Stored visit date mismatch. expected={fixture_visit_date}, got={stored_visit_ist_date}")
         if payment.get("kind") != "PACKAGE_BILL":
             raise RuntimeError(f"Expected PACKAGE_BILL payment, got: {payment}")
         if len(rx) != 1:

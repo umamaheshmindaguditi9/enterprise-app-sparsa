@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api, fmtErr } from "@/lib/api";
+import { stableEntries } from "@/lib/stableEntries";
 import { useAuth } from "@/contexts/AuthContext";
 import { PatientPhoto } from "@/components/PatientPhoto";
 import { PatientPhotoEditor } from "@/components/PatientPhotoEditor";
@@ -15,29 +16,29 @@ function Markdown({ source }) {
   let listBuf = [];
   const flushList = () => {
     if (listBuf.length) {
-      out.push(<ul key={out.length} className="list-disc pl-5 space-y-0.5">{listBuf.map((t, i) => <li key={i}>{inline(t)}</li>)}</ul>);
+      out.push(<ul key={`list:${listBuf[0].key}`} className="list-disc pl-5 space-y-0.5">{listBuf.map(({ text, key }) => <li key={key}>{inline(text)}</li>)}</ul>);
       listBuf = [];
     }
   };
   const inline = (txt) => {
     const parts = [];
-    let i = 0; let key = 0;
+    let i = 0;
     txt.replace(/\*\*(.+?)\*\*/g, (m, b, idx) => {
       if (idx > i) parts.push(txt.slice(i, idx));
-      parts.push(<strong key={key++}>{b}</strong>);
+      parts.push(<strong key={`${idx}:${b}`}>{b}</strong>);
       i = idx + m.length;
       return m;
     });
     if (i < txt.length) parts.push(txt.slice(i));
     return parts.length ? parts : txt;
   };
-  for (const raw of lines) {
+  for (const { value: raw, key } of stableEntries(lines)) {
     const l = raw.trimEnd();
-    if (/^##\s+/.test(l)) { flushList(); out.push(<h2 key={out.length}>{l.replace(/^##\s+/, "")}</h2>); }
-    else if (/^#\s+/.test(l)) { flushList(); out.push(<h2 key={out.length}>{l.replace(/^#\s+/, "")}</h2>); }
-    else if (/^[-*]\s+/.test(l)) { listBuf.push(l.replace(/^[-*]\s+/, "")); }
+    if (/^##\s+/.test(l)) { flushList(); out.push(<h2 key={key}>{l.replace(/^##\s+/, "")}</h2>); }
+    else if (/^#\s+/.test(l)) { flushList(); out.push(<h2 key={key}>{l.replace(/^#\s+/, "")}</h2>); }
+    else if (/^[-*]\s+/.test(l)) { listBuf.push({ text: l.replace(/^[-*]\s+/, ""), key }); }
     else if (l.trim() === "") { flushList(); }
-    else { flushList(); out.push(<p key={out.length}>{inline(l)}</p>); }
+    else { flushList(); out.push(<p key={key}>{inline(l)}</p>); }
   }
   flushList();
   return <>{out}</>;

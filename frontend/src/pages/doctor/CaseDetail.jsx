@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api, fmtErr, fmtIST } from "@/lib/api";
 import StatusBadge from "@/components/StatusBadge";
@@ -35,15 +35,16 @@ export default function CaseDetail() {
   const [pendingRxDraft, setPendingRxDraft] = useState(null); // {items, notes_for_patient, token}
   const history = usePatientHistory(data?.case?.id === id ? data.case.patient_id : null, id);
 
-  const reload = async () => {
+  const consumeRxDraft = useCallback(() => setPendingRxDraft(null), []);
+  const reload = useCallback(async () => {
     try { const r = await api.get(`/cases/${id}`); if (activeCaseId.current === id) setData(r.data); }
     catch (e) { if (activeCaseId.current === id) setErr(fmtErr(e)); }
-  };
+  }, [id]);
   useEffect(() => {
     setData(null); setErr(""); setTab("notes"); setPendingRxDraft(null);
     setBypassOpen(false); setBypassReason(""); setBypassErr("");
     reload();
-  }, [id]);
+  }, [reload]);
 
   if (err) return <div className="p-8 text-red-700">{err}</div>;
   if (!data || data.case.id !== id) return <div className="p-8 grid place-items-center text-gray-400"><Loader2 className="animate-spin" /></div>;
@@ -147,7 +148,7 @@ export default function CaseDetail() {
           caseId={c.id}
           latest={data.latest_prescription}
           draft={pendingRxDraft}
-          onDraftConsumed={() => setPendingRxDraft(null)}
+          onDraftConsumed={consumeRxDraft}
           onSaved={reload}
         /></>
       )}
@@ -213,7 +214,7 @@ function PrescriptionTab({ caseId, latest, draft, onDraftConsumed, onSaved }) {
       setDraftBanner(`Loaded ${draft.items.length} AI-drafted item${draft.items.length > 1 ? "s" : ""}. Review, edit if needed, then Save prescription.`);
       onDraftConsumed?.();
     }
-  }, [draft?.token]);
+  }, [draft, onDraftConsumed]);
 
   const update = (i, key, value) => {
     const next = [...items];

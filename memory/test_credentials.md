@@ -20,3 +20,10 @@ Seeded on backend startup. Login via POST /api/auth/login with `{username, passw
 - Roles enforced server-side. OWNER_DOCTOR (Jyothi) can see all cases including Hemanth's.
 - DOCTOR (Hemanth) can only see his own assigned cases.
 - ADMIN has full read access to all data and exclusive access to user management + audit logs + stats.
+
+## Environment for preview test runners
+- `REACT_APP_BACKEND_URL`: use the value in `frontend/.env`.
+- `TEST_CLINIC_PASSWORD`: supply the existing preview account password documented above; account credentials are unchanged.
+- `TEST_TWILIO_AUTH_TOKEN`: required only for iteration-6 provider/security tests; supply a disposable, randomly generated synthetic test string, NOT a live provider credential. It must never be used to send messages.
+- The historical-package setup/acceptance scripts also require `TEST_CLINIC_PASSWORD`; all existing account credentials remain unchanged.
+- The test runner passes these values; do not commit them into source. Provider-settings tests must restore their original settings on exit.

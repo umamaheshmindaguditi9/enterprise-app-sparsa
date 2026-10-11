@@ -1,0 +1,53 @@
+{
+  "summary": "Completed backend+frontend verification for requested code-review and past-visit package acceptance scope. Backend regressions passed (40 selected tests) and characterization tests for ai_context/fir_parsing/package_view passed (6/6). Frontend acceptance for real 200 commit + dropped first response + same-body retry + photo fail-once/retry-success passed via browser fault injection, with pre-save validity checks enforced.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "/api/auth/login",
+        "issue": "Legacy lockout expectation test (6th failed login should be 429) returned 401 in test_iteration12_req35_packages_notes_photos.py::test_bruteforce_lockout_after_five_failures_expected. This was treated as non-blocking per scope guidance.",
+        "priority": "HIGH"
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/scripts/test_past_packages_acceptance.py",
+    "/app/scripts/setup_iteration16_ui_fixture.py",
+    "/app/scripts/test_import_orders_iteration17.py",
+    "/app/backend/tests/test_iteration17_characterization.py",
+    "/app/test_reports/pytest/iteration17_regression32.xml",
+    "/app/test_reports/pytest/iteration17_regression40_nonblock_auth.xml",
+    "/app/test_reports/pytest/iteration17_characterization.xml",
+    "/app/test_reports/code_review_eslint_iteration17.json"
+  ],
+  "action_items": [
+    "Decide whether auth brute-force lockout behavior should be 401 (current) or 429 (legacy test expectation), then align test or implementation.",
+    "If local execution of /app/scripts/test_past_packages_acceptance.py is required in CI, install/configure Python Playwright in that runner (browser automation tool execution is already validated)."
+  ],
+  "critical_code_review_comments": [
+    "Circular import target path is healthy in test runs: both import orders (core/package_service/case_views and package_service/case_views/core) succeeded with backend env loaded first.",
+    "New characterization tests confirm prompt helper truncation bounds (250/300/2000), FIR/clinical whitelist behavior, and package status/payment mapping including reversal-to-unpaid behavior.",
+    "No new ObjectId leakage observed in characterized package_view response paths (_id excluded)."
+  ],
+  "updated_files": [
+    "/app/scripts/setup_iteration16_ui_fixture.py",
+    "/app/scripts/test_past_packages_acceptance.py",
+    "/app/scripts/test_import_orders_iteration17.py",
+    "/app/backend/tests/test_iteration17_characterization.py",
+    "/app/test_reports/iteration_17.json"
+  ],
+  "success_rate": {
+    "backend": "97.6% (40 passed / 41 collected in broad run; 1 non-blocking legacy auth-lockout expectation), plus 6/6 characterization pass",
+    "frontend": "95% (smoke + full P0 acceptance flow passed after one script-argument fix)"
+  },
+  "seed_data_creation": "Created TEST_PASTPKG_UI_a5bdf346 fixture via setup script; cleanup completed via /app/scripts/cleanup_iteration16_ui_fixture.py (packages_removed=1, cases_removed=2).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "P0 acceptance now reproduces and validates: real 200 commit captured before dropped response, pending warning shown, retry sends exact same payload (2 POST total), same case id retained, single package-bill ledger entry, and photo retry does not duplicate visit/payment. Fixture cleanup already executed. If rerunning locally via python script, ensure Playwright Python dependency is present.",
+  "rca of the issue": "Root cause for earlier 'no pending warning/no POST' was invalid form data in test automation: hardcoded old payment_date outside package range/start-date constraints caused disabled save. Fix used fixture visit_date bounded by package start and current date, plus explicit form.checkValidity + invalid-field capture before click. Previous photo decode issue was due tiny inline image reliability; script now uses generated PNG bytes. Browser response-loss verification succeeded using one-time XHR onloadend fault injection (no API mocks/failpoints/auth changes)."
+}

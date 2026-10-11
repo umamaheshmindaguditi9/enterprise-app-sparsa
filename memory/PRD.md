@@ -151,7 +151,7 @@ Per Emergent support: appears only in the preview environment. Auto-removed on d
 - ~~**Mobile / tablet responsive pass**~~ (DONE 2026-07-20 — drawer sidebar, responsive padding, stacked case detail, larger touch targets).
 
 ## Next Action Items
-- **Current priority (2026-10-10):** User review of Add Past Visit → Payments → Packages & dues. Core backend/browser tests passed; one advanced post-commit lost-response browser test remains unverified. User subsequently requested a deployment readiness health check: scanner PASS, preview health/login HTTP 200. No deployment performed. See latest sections below for exact scope and caveats.
+- **Current priority (2026-10-11):** User review of the code-quality fixes and completed Add Past Visit → Packages & dues acceptance. Confirmed hook/import/maintainability findings addressed; lint/build/import checks pass, 40 selected regressions + 11 helper tests pass. Persisted real-commit/lost-response/payment+photo recovery test now passes. Pre-existing login-lockout limitation remains separate. Earlier readiness check was PASS for its then-current revision; no deployment performed. See latest sections below.
 - Replace `/app/frontend/public/logo.png` with a higher-res / SVG version anytime — the `<Logo />` component already loads from `/logo.png`.
 - Paste Twilio + WhatsApp keys via **/admin/messaging** (or backend/.env) to activate WhatsApp/SMS.
 - Schedule `/app/scripts/backup.sh` on the clinic server PC (cron / Task Scheduler) — see `/app/scripts/README.md`.
@@ -244,9 +244,9 @@ Per Emergent support: appears only in the preview environment. Auto-removed on d
 - New regression suite `backend/tests/test_iteration16_past_visit_packages_dues.py`: **9/9 passed**. Existing selected past-visit/FIR/history/package suites: **23/23 passed**. Reports: `test_reports/iteration_15.json`, `test_reports/pytest/iteration16_pastpkg.xml`, `test_reports/pytest/iteration16_existing_regressions.xml`.
 - Verified historical date validation, role guards, expired/completed/renewed historical coverage, zero/partial/full settlement, replay and concurrent-save behavior, competing overpayment rejection, unchanged doctor financial scope. Browser verified package creation/selection, 17 clinical fields retained, amount-mode separation, load-failure recovery and reception legacy save.
 - Follow-up testing verified **real saved package visit + failed photo upload + successful real upload retry**: exactly one visit, one bill, one note, one Rx and one attachment. Retry made attachment calls only. Test case `ec18b6ec-01ca-4056-93f9-3ef9c2408c39` belonged to a newly created fixture and was cleaned; existing patients were not removed.
-- **Open coverage gap:** actual post-commit response loss could not be demonstrated in the browser because the test interceptor's forwarded request returned 401. Normal browser/API authentication and server replay/concurrency tests passed; this is not a confirmed application auth bug. UI pending/exact-body retry was tested using injected failure. No application API is mocked; fault injection was test-only. Do not claim this advanced scenario fully verified.
+- **Coverage update (2026-10-11): CLOSED.** Earlier post-commit response-loss attempts were blocked by test forwarding and an invalid fixture payment date, not a confirmed application auth defect. Iteration 18 executed the persisted browser script successfully: a real authenticated commit was observed before its browser response was aborted, and exact-request retry preserved one case/payment. See the latest verification section. No application API is mocked; fault injection is test-only.
 - Test agent observed a non-blocking `<span>` inside `<option>` console warning attributed tentatively to preview instrumentation; attribution and non-instrumented reproduction remain unverified. No scoped functional defect was reported.
-- P1: user acceptance and completion of the real post-commit response-loss test without adding production failpoints. P2: optional package receipt preview before saving. Existing auth/CORS/AI/reminder backlog remains separate.
+- P1: user acceptance; the real post-commit response-loss test is now complete without production failpoints. P2: optional package receipt preview before saving. Existing auth/CORS/AI/reminder backlog remains separate.
 
 ## Deployment readiness health check (2026-10-10)
 - Exact user request: “Call Deployment Agent and Run Health Check to Check for Readiness for Deployment”. Performed readiness scanning only; **no deployment, production access or configuration changes**.
@@ -254,3 +254,32 @@ Per Emergent support: appears only in the preview environment. Auto-removed on d
 - Independent preview checks: `/api/health` returned `status: ok`; `/login` returned HTTP 200. Health reports SMS and WhatsApp disabled/unconfigured.
 - Readiness does not establish production runtime health or complete acceptance of all workflows. Existing concerns remain: permissive CORS configuration, absent login brute-force lockout, AI long-call proxy timeout, disabled messaging providers, existing React hook warnings and the advanced financial test gap above.
 - Report: `test_reports/deployment_health_current.md`. Next action is user review of the changed workflow; no release was initiated. Suggested safeguard: a short historical-entry/payment receipt release checklist.
+
+## Code-quality fixes and completed package acceptance (2026-10-11)
+
+### User request
+- “complete the testing for Add Past Visit → Packages & Dues option”, followed by a detailed code-review request covering circular imports, hardcoded secrets, React hook dependencies, Python undefined names/comparisons, function complexity, stable keys, memoization and service type hints.
+- Preserve existing clinical and financial behavior, private records and permissions. No auth integration, model/provider, package terms, environment settings or production dependency changes were requested or made.
+
+### Implemented
+- Moved `enrich_case` from `core.py` to new `case_views.py`, breaking the reverse service import; cases router updated. New pure `ai_context.py` owns profile/history/current-visit/attachment/quick-action formatting, leaving AI calls and prompts in their original router.
+- Split package status/payment/renewal calculation and FIR clinical leaf/section normalization into helpers; added signatures throughout the four requested service files.
+- Added strict frontend `eslint.config.js`. All **8 actual** exhaustive-deps findings fixed in attachments, package billing/detail, doctor/pharmacy case details and billing/proof panels via stable callbacks and complete dependencies. Static counts in the supplied report (51 hooks, 10 undefined Python names, 52 literal comparisons) were not reproducible; actual Python undefined/literal-comparison checks returned zero. Valid `is None` remains unchanged.
+- Refactored clinical-note state/untouched-reference merging into `useClinicalNotes`, with field rendering separate. Refactored image conversion/camera/state into `patientPhoto`, `usePhotoCamera`, `usePatientPhotoEditor`. Package loading uses `usePatientPackages`, payment validation/fields use `PastPackagePaymentFields`.
+- Memoized existing note/FIR/package display calculations; stable list identities replace the three reported index-key patterns without rewriting legacy data. Package select labels are single text values.
+- The frontend “secret” finding points to public role labels and was correctly left unchanged. `test_iteration6.py` and the package test setup/acceptance scripts now receive test passwords/tokens through environment; actual accounts were not changed. Updated `memory/test_credentials.md` with runner requirements.
+
+### Verification and artifact review
+- Build compiled successfully, strict hooks/undefined-name lint zero, Python compile/type-signature/undefined-name/comparison checks pass, both import orders pass with environment loaded.
+- Iteration 17: **40 selected backend regressions passed**; 1 older login-lockout expectation failed and is tracked separately. Iteration 18: **11/11 helper characterization tests passed**. Reports `test_reports/iteration_17.json`, `iteration_18.json` and related pytest XML.
+- Repaired and executed the persisted `scripts/test_past_packages_acceptance.py`: environment-supplied URL/password, valid historical dates in IST, form-validity prechecks, correctly generated image bytes, correct Playwright argument passing.
+- Real server commit was checked before aborting the first browser-visible response; retry reused the exact request/key and the same case. Exactly one case/notes/Rx/bill/positive ledger receipt remained; photo fail-once followed by successful real object-storage upload did not resubmit visit/payment. Historical visit date and package contract terms unchanged; widths 320/768/1024/1440 passed.
+- Precise fault mechanism: authenticated browser-context API POST then route abort, no app XHR patch, mocked success or production failpoint. Test script comment/trigger label subsequently corrected to describe this mechanism; executable logic unchanged.
+- Test artifacts reviewed by main. New test fixtures and historical import reservations cleaned with exact IDs; evidence in `iteration18_setup.log`, `iteration18_acceptance.log`, `iteration18_cleanup.log`. Test-only Playwright installed in disposable `/tmp/it18_venv`, not production requirements.
+- Detailed finding disposition: `test_reports/code_review_resolution.md`. No scoped application defects remain reported. Live external AI calls and exhaustive device-camera/read-only UI combinations were not rerun; the first was outside scope and latter branches were code-inspected.
+
+### Next priorities
+- P0 scoped code-review/payment-recovery work: complete and tested as above. No production deployment performed.
+- P1: user acceptance; separately address the known absent login lockout (older test expects 429, actual is 401) and stricter CORS when authorized. Existing AI edge timeout and unconfigured messaging remain unchanged.
+- P2: optional dedicated editor/camera branch tests and package-receipt preview.
+- Suggested enhancement: automate lint, service characterization and payment-recovery tests before each release.
