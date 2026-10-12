@@ -1,52 +1,71 @@
+<!-- Premium README for Sparsa Homeoclinic -->
+
 # Sparsa Homeoclinic
 
-![Sparsa Homeoclinic](frontend/public/sparsa-logo.png)
+[![Status](https://img.shields.io/badge/status-active-brightgreen.svg)](#)
+[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](#)
+[![React](https://img.shields.io/badge/react-19.0-blue.svg)](#)
+[![MongoDB](https://img.shields.io/badge/mongodb-%E2%89%A5--4.0-green.svg)](#)
 
-A role-based clinic operations platform for patient intake, case management, prescriptions, pharmacy coordination, billing and administration. Built for clinics that need lightweight, auditable workflows and a clear separation of responsibilities for Reception, Doctors, Pharmacy, PRO (billing), and Admin.
+A role-driven clinic operations platform for patient intake, case lifecycle management, prescriptions, pharmacy coordination, billing and administration — optimized for small clinics that want an auditable, lightweight on‑prem or cloud deployment.
 
-Key goals: fast setup for on-prem / small-cloud clinics, clear role-driven UI, and extensible AI + messaging integrations.
+This repository contains a FastAPI backend (Python) and a React frontend (Create React App + CRACO + Tailwind) wired together for a smooth developer experience and fast iteration.
 
 ---
 
-## Features
+## Highlights
 
-- Role-based dashboards (Reception, Doctor, Pharmacy, PRO, Admin)
-- Patient registration, case lifecycle, and clinical notes
-- Prescription authoring and pharmacy dispensing workflow
-- Billing, receipts, and package-based billing computations
-- Reminders and scheduled jobs (reminder scheduler)
-- Messaging integrations (Twilio / WhatsApp) and object attachments
-- Admin utilities: user & audit management, exports, AI settings
-- Local dev-friendly: seeded demo users, setup scripts, and Docker-friendly patterns
+- Clean role separation: Reception, Doctor, Pharmacy, PRO (billing), Admin
+- Full case lifecycle: intake → consult → dispense → billing → receipts
+- Extensible AI workflows and messaging integrations (Twilio / WhatsApp)
+- Local-friendly dev experience: seed data, setup scripts, and Docker-ready patterns
 
 ---
 
 ## Demo / Screenshots
 
-> Add your app screenshots to `docs/screenshots/` and update paths below. Example sizes: 1200×700px for hero / dashboard images, 800×600px for detail pages.
+(Place production-ready screenshots under `docs/screenshots/`. I recommend committing the following files:)
 
+- `docs/screenshots/hero-dashboard.png` — clinic dashboard (1200×700)
+- `docs/screenshots/login.png` — login page (800×500)
+- `docs/screenshots/case-detail.png` — case detail / prescription (1200×700)
+
+Example markdown (already present in README):
+
+```md
 ![Login screen](docs/screenshots/login.png)
 ![Reception dashboard](docs/screenshots/reception-dashboard.png)
+```
 
-If you’d like, I can add a small script to capture screenshots automatically from a running instance (puppeteer / playwright) and commit them to `docs/screenshots/`.
+I can add a small Playwright script to capture these images from a running instance and commit them for you.
 
 ---
 
-## Quick start (development)
+## Quick links
+
+- Backend: `backend/` (FastAPI)
+- Frontend: `frontend/` (React + Tailwind)
+- Setup scripts: `setup_project.sh`, `setup_sparsa_linux.sh`
+- Seed data: `backend/seed.py`
+- API entrypoint: `backend/server.py`
+
+---
+
+## Getting started (short)
 
 Prerequisites
-- Node 18+, Yarn 1.22.x (or npm)
 - Python 3.11+
+- Node.js 18+ and Yarn 1.22.x (or npm)
 - MongoDB (local or Docker)
 
-One-line bootstrap (Linux/macOS):
+Bootstrap (recommended):
 
 ```bash
-# runs install, creates .env defaults, installs deps
+# recommended quick bootstrap (Linux/macOS)
 ./setup_sparsa_linux.sh
 ```
 
-Manual (step-by-step)
+Manual (backend + frontend):
 
 ```bash
 # Backend
@@ -54,19 +73,19 @@ cd backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-# ensure backend/.env contains MONGO_URL, DB_NAME, JWT_SECRET
-python seed.py  # optional, server will seed at startup
+# ensure backend/.env (MONGO_URL, DB_NAME, JWT_SECRET)
 uvicorn server:app --reload --host 0.0.0.0 --port 8000
 
-# Frontend (in a separate terminal)
+# Frontend (separate shell)
 cd frontend
 yarn install
 yarn start
 ```
 
-Open: http://localhost:3000
+Open: http://localhost:3000 — the app redirects to `/login` for unauthenticated users.
 
-Default seeded users (development only)
+Default dev users (auto-seeded) — change before production:
+
 - admin1 / Password@123 (ADMIN)
 - jyothi / Password@123 (OWNER_DOCTOR)
 - hemanth / Password@123 (DOCTOR)
@@ -76,9 +95,7 @@ Default seeded users (development only)
 
 ---
 
-## Architecture
-
-High-level runtime picture:
+## Architecture (concise)
 
 ```mermaid
 flowchart LR
@@ -88,68 +105,83 @@ flowchart LR
   Backend -->|async| Mongo[(MongoDB)]
   Backend -->|Object Storage| Storage[(Emergent / S3-like)]
   Backend -->|External APIs| Messaging[(Twilio / WhatsApp / Payment)]
-  Backend -->|Background tasks| Scheduler[(Reminder scheduler / cron-like tasks)]
+  Backend -->|Background tasks| Scheduler[(Reminder scheduler)]
   Backend -.->|Auth (JWT cookies)| Browser
   note right of Backend: Roles: RECEPTION, DOCTOR, PHARMACY, PRO, ADMIN
 ```
 
-Files of interest:
-- Backend entrypoint: `backend/server.py`
-- Shared infra / auth: `backend/core.py`
-- API models: `backend/models.py`
-- Routers: `backend/routers/*` (patients, cases, payments, reminders, admin, ai, etc.)
-- Frontend router & role config: `frontend/src/App.js`
-- Frontend auth & API client: `frontend/src/contexts/AuthContext.jsx` and `frontend/src/lib/api.js`
+Key runtime pieces:
+- `backend/server.py` — app startup, middleware, router registration
+- `backend/core.py` — DB connection, JWT handling, auth helpers, audit
+- `backend/routers/*` — domain API routes (patients, cases, packages, payments, reminders, admin, ai)
+- `frontend/src/App.js` — route map and role guards
+- `frontend/src/contexts/AuthContext.jsx` — login / refresh / logout
+- `frontend/src/lib/api.js` — axios client and formatting helpers
 
 ---
 
-## Deployment notes
+## Deployment recommendations
 
-- Use a process manager (systemd) or container orchestration (Docker Compose / Kubernetes).
-- For production, use environment-specific secrets (Vault / Secrets Manager) for `JWT_SECRET` and messaging/storage keys.
-- Use a managed MongoDB or hardened MongoDB with backups and TLS.
-- Run the backend behind a reverse proxy (NGINX) with TLS terminating.
-- Recommended production command (example):
+- Containerize the backend and frontend for production. Example `docker-compose.yml` should include MongoDB (or use managed DB), backend, and optionally a static frontend service.
+- Use a secret manager for `JWT_SECRET`, messaging keys, and storage credentials.
+- Serve frontend static files from a CDN or object storage (S3) behind HTTPS.
+- Use a production ASGI server (Gunicorn + Uvicorn workers) behind NGINX.
+
+Example production command inside a container or virtualenv:
 
 ```bash
-# inside container or virtualenv
 gunicorn -k uvicorn.workers.UvicornWorker backend.server:app -b 0.0.0.0:8000 --workers 4
 ```
 
 ---
 
-## Security & privacy
+## Security notes
 
-- Rotate `JWT_SECRET` carefully; token revocation strategies required for forced logout.
-- Do not commit credentials to the repo. The setup scripts create `.env` files for local dev.
-- Audit logs are stored in `db.audit_logs` and are created for login/logout and major actions — review the `backend/core.py` `audit()` call-sites for coverage.
+- Do NOT use seeded passwords in production. Rotate credentials and use role-appropriate accounts.
+- `JWT_SECRET` must be a strong random value; rotate with care (implement revocation if needed).
+- Audit logs are written via `backend/core.py` `audit()` — review for required retention and access controls.
+
+---
+
+## Testing & CI
+
+- Backend tests: `cd backend && pytest`
+- Frontend tests: `cd frontend && yarn test`
+
+I can add a GitHub Actions CI workflow that runs `pytest`, `black --check`, and `yarn test` on each PR; let me know and I will open a PR for the workflow.
 
 ---
 
 ## Contributing
 
-- Run backend tests: `cd backend && pytest`
-- Format backend code: `black . && isort .`
-- Keep frontend styles consistent with Tailwind conventions and run `yarn test` locally for UI checks.
+1. Fork the repo and open a branch for your change.
+2. Run tests and linters locally before opening a PR.
+3. Keep commits focused and add a helpful PR description.
 
-If you want me to:
-- add a GitHub Actions workflow to run tests and linters on PRs, or
-- add example `docker-compose.yml` for local dev (mongo + backend + frontend static),
-I can prepare them and open a PR.
+Formatting (backend): `black . && isort .`
 
 ---
 
-## Screenshots / assets guidance
+## Roadmap & ideas
 
-To include screenshots in this README:
-1. Create `docs/screenshots/` in the repo and add PNG/JPEG files.
-2. Prefer 1200×700 px for page-level screenshots and 800×600 for smaller panels.
-3. Commit images and then the markdown above will render them.
+- Official Docker Compose example for local full-stack dev
+- Playwright-based visual regression & automated screenshot capture
+- GitHub Actions CI + automated code scanning
+- Optional SSO / SAML provider support for clinics with centralized auth
 
 ---
 
-## License & acknowledgements
+## License
 
-No license file is present. Add a `LICENSE` file (MIT, Apache-2.0, etc.) if you plan to publish or share this repository publicly.
+No LICENSE file is present. Add a `LICENSE` (MIT / Apache-2.0 / GPL) if you want to publish or open-source this repository.
 
-Acknowledgements: built with FastAPI, React (CRA), Tailwind, Radix UI and emergent integrations.
+---
+
+## Need help?
+
+If you want, I can:
+- add screenshots automatically (Playwright) and commit them to `docs/screenshots/`
+- create a `docker-compose.yml` and a `Makefile` for dev
+- add a GitHub Actions CI workflow that runs tests & linters
+
+Happy to continue — tell me which of the above you want next and I will implement it.
