@@ -1,93 +1,136 @@
 # Sparsa Homeoclinic
 
-Enterprise README — setup, architecture, diagrams, and operational runbook
+Sparsa Homeoclinic is a role-based clinic and hospital operations application for patient intake, case management, doctor workflows, pharmacy coordination, billing, and administration. The project is split into a Python FastAPI backend backed by MongoDB and a React frontend with role-based dashboards.
 
-This document is an operator- and developer-focused guide for the Sparsa Homeoclinic codebase. It contains step-by-step setup/run instructions, architecture diagrams, testing & CI guidance, troubleshooting tips, and recommended operational practices for enterprise deployments.
+## What this project includes
 
-Table of contents
-- Project overview
-- Architecture & data flow (diagrams)
-- Case workflow (sequence)
-- Prerequisites
-- Backend: install, run, seed, test
-- Frontend: install, run, build, test
-- Environment variables & secrets
-- CI / Testing / Linting
-- Deployment guidance (production notes)
-- Troubleshooting
-- Contributing & contacts
+- Patient registration and case creation flows
+- Doctor-facing case timelines, notes, prescriptions, and follow-ups
+- Pharmacy workflow tracking and reminder management
+- PRO / billing screens, financial search, and receipt generation
+- Admin screens for users, audits, exports, messaging, and AI settings
+- JWT-based authentication with role-aware access control
+- MongoDB-backed persistence and audit logging
 
-**Project overview**
+## Tech stack
 
-Sparsa Homeoclinic is a two-tier web application:
-- Frontend: React application (CRA + Tailwind + Radix UI components) located in [frontend](frontend).
-- Backend: FastAPI async service (Motor + MongoDB) located in [backend](backend).
+### Backend
+- Python 3.11+
+- FastAPI
+- Motor / PyMongo
+- JWT authentication with bcrypt password hashing
+- Pydantic models for validation
 
-Key backend responsibilities:
-- Authentication & RBAC (JWT)
-- Patient, Case, Prescription, Pharmacy workflows
-- File attachments via emergent object storage
-- Messaging integrations (Twilio / WhatsApp)
-- Scheduled reminders
+### Frontend
+- React 19
+- Create React App with CRACO
+- Tailwind CSS
+- React Router
+- Radix UI and custom component patterns
 
-**Architecture & data flow**
+### Data and integrations
+- MongoDB
+- Twilio / WhatsApp messaging support
+- Emergent object storage / attachments support
 
-High-level flow:
+## Repository structure
 
-```mermaid
-flowchart LR
-	Client[Client Browser / Mobile]
-	Client -->|HTTP(S)| Frontend[React Frontend]
-	Frontend -->|API calls| Backend[FastAPI Backend]
-	Backend -->|async| Mongo[(MongoDB)]
-	Backend -->|Object Storage| Storage[(Emergent Object Storage)]
-	Backend -->|External APIs| Ext[Twilio / WhatsApp / Payment]
-	Backend -->|Background Jobs| Scheduler[(APScheduler / Async tasks)]
-	note right of Backend: Auth (JWT), RBAC, Audit logs
+```text
+.
+├── backend/                    # FastAPI backend application
+│   ├── routers/                # Auth, patients, cases, pharmacy, billing, admin, AI, exports
+│   ├── __pycache__/            # Generated Python cache files
+│   ├── ai_settings.py          # AI settings helpers
+│   ├── clinical_context.py     # Clinical context shaping helpers
+│   ├── core.py                 # Shared DB, JWT, roles, auth, audit helpers
+│   ├── financial_reporting.py  # Revenue / financial reporting helpers
+│   ├── fir_parsing.py          # FIR parsing utilities
+│   ├── messaging.py            # Messaging and provider integration logic
+│   ├── models.py               # Pydantic request / response models
+│   ├── package_models.py       # Package and billing models
+│   ├── package_service.py      # Package logic and billing calculations
+│   ├── patient_access.py       # Access / finance visibility logic
+│   ├── prompts.py              # Prompt templates and AI instructions
+│   ├── requirements.txt        # Backend Python dependencies
+│   ├── seed.py                 # Seed users and initial clinic data
+│   ├── server.py               # FastAPI app startup and router registration
+│   ├── storage.py              # Storage integration helpers
+│   └── tests/                  # Backend tests
+├── frontend/                   # React frontend application
+│   ├── public/                 # Static frontend assets
+│   ├── src/                    # App source code
+│   ├── README.md               # CRA default starter README (not the project README)
+│   ├── package.json            # Frontend dependencies and scripts
+│   ├── craco.config.js         # CRACO config
+│   ├── tailwind.config.js      # Tailwind config
+│   └── yarn.lock               # Frontend lockfile
+├── memory/                     # Product docs, plans, and test credentials
+│   ├── PRD.md
+│   ├── CHANGE_REQUEST_PLAN.md
+│   └── test_credentials.md
+├── scripts/                    # Operational scripts
+│   ├── README.md               # Backup / restore guide
+│   ├── backup.sh
+│   ├── restore.sh
+│   └── ...
+├── .gitignore
+├── .gitconfig
+├── README.md                   # This file
+├── design_guidelines.json       # Design / product guidance document
+├── setup_project.sh            # Full bootstrap script for Linux/macOS-like environments
+├── setup_sparsa_linux.sh       # Alternative setup script for Linux
+├── setup-guide-expert.sh        # Guided setup script
+├── test_result.md              # Test summary report
+├── tests/                      # Project-level tests / validation
+├── yarn.lock                   # Root lockfile
+└── .emergent/                  # Emergent-generated workspace metadata
 ```
 
-Files to inspect for internals:
-- Backend entrypoint: [backend/server.py](backend/server.py#L1-L200)
-- Core infra and auth: [backend/core.py](backend/core.py#L1-L200)
-- Dependency list: [backend/requirements.txt](backend/requirements.txt#L1-L50)
-- Frontend root: [frontend/package.json](frontend/package.json#L1-L80)
+## How the app fits together
 
-**Case workflow (sequence)**
+The backend exposes a FastAPI API under `/api` and mounts domain-specific routers such as auth, patients, cases, pharmacy, payments, reminders, exports, admin, and AI. The frontend is role-aware and routes users to different dashboards based on their role via `frontend/src/App.js`.
 
-This is the typical lifecycle of a case in the system.
+A typical flow is:
 
-```mermaid
-sequenceDiagram
-	participant Reception
-	participant Backend
-	participant Doctor
-	participant Pharmacy
-	participant PRO as Billing
+1. A user signs in from the React UI.
+2. The browser calls the backend through the API client.
+3. The backend validates the JWT and loads the user from MongoDB.
+4. MongoDB stores patients, cases, billing records, reminders, and audit logs.
+5. Role-specific pages render different workflows for reception, doctors, pharmacy, billing, and admin.
 
-	Reception->>Backend: create case (patient + initial data)
-	Backend->>Backend: seed audit log, set status WAITING_FOR_DOCTOR
-	Doctor->>Backend: take case, add clinical notes (IN_CONSULTATION)
-	Doctor->>Backend: send to pharmacy (SENT_TO_PHARMACY)
-	Pharmacy->>Backend: dispense (IN_PHARMACY -> READY_FOR_BILLING)
-	PRO->>Backend: bill & record payment (PARTIALLY_PAID / CLOSED)
-	Backend-->>Reception: notifications (reminders / messaging)
+## Default roles and seeded users
+
+The project seeds a small set of default users in `backend/seed.py`.
+
+- `admin1` / `Password@123`
+- `jyothi` / `Password@123`
+- `hemanth` / `Password@123`
+- `reception1` / `Password@123`
+- `pharmacy1` / `Password@123`
+- `pro1` / `Password@123`
+
+These are intentionally simple local-development credentials and should be changed before production use.
+
+## Prerequisites
+
+- MongoDB running locally or in Docker
+- Python 3.11+
+- Node.js 18+ and Yarn 1.22.x
+- Optional: messaging and storage credentials if you plan to enable those integrations
+
+## Quick local setup
+
+### Option 1: use the provided Linux setup script
+
+```bash
+./setup_sparsa_linux.sh
 ```
 
-**Prerequisites**
+This script installs required system packages, creates local `.env` files, creates a Python virtual environment, installs backend dependencies, and installs frontend dependencies.
 
-- Linux/macOS/Windows with WSL
-- Python 3.11+ (recommended) and pip
-- Node.js 18+ and Yarn 1.22.x (project uses Yarn)
-- MongoDB instance (local or Atlas) accessible via `MONGO_URL`
-- Optional: Emergent Object Storage credentials for attachments, Twilio credentials for messaging
+### Option 2: manual setup
 
-Local dev ports (defaults used by project):
-- Backend: 8000 (uvicorn)
-- Frontend: 3000 (CRA / craco)
-
-**Backend — setup & run (development)**
-
-1. Create a virtual environment and install dependencies
+#### Backend
 
 ```bash
 cd backend
@@ -96,140 +139,112 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-2. Provide environment variables. Create `backend/.env` with at minimum:
-
-```bash
-MONGO_URL="mongodb://localhost:27017"
-DB_NAME="sparsa_homeoclinic"
-JWT_SECRET="<secure-random-value>"
-# Optional but recommended for integrations:
-WHATSAPP_ACCESS_TOKEN="..."
-WHATSAPP_PHONE_NUMBER_ID="..."
-TWILIO_ACCOUNT_SID="..."
-TWILIO_AUTH_TOKEN="..."
-EMERGENT_API_KEY="..."
-EMERGENT_BUCKET="..."
-```
-
-3. Seed demo data (server startup will call seed_all automatically, but you can run manually)
-
-```bash
-python seed.py
-```
-
-4. Run dev server (reloads on change)
-
-```bash
-uvicorn server:app --reload --host 0.0.0.0 --port 8000
-```
-
-5. Health check
-
-```bash
-curl http://localhost:8000/api/health
-```
-
-**Frontend — setup & run (development)**
-
-1. Install and start
+#### Frontend
 
 ```bash
 cd frontend
 yarn install
-yarn start
 ```
 
-2. Build for production
+## Environment variables
+
+The backend expects these variables at runtime.
 
 ```bash
-yarn build
+MONGO_URL="mongodb://localhost:27017"
+DB_NAME="sparsa_homeoclinic"
+JWT_SECRET="replace-with-a-strong-random-secret"
 ```
 
-3. Tests
+Optional but commonly used in production or advanced setups:
 
 ```bash
-cd backend && pytest -v
-cd frontend && yarn test
+CORS_ALLOWED_ORIGINS="http://localhost:3000"
 ```
 
-**Environment variables & secrets (summary)**
+The setup scripts create local `.env` files under `backend/` and `frontend/`. Review them before running the app, especially if you need to change the database name, port, or CORS origin.
 
-- `MONGO_URL` — MongoDB connection string (required)
-- `DB_NAME` — Database name (required)
-- `JWT_SECRET` — Secret used for JWT signing (required)
-- Messaging keys: `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `TWILIO_*`
-- Object storage: `EMERGENT_API_KEY`, `EMERGENT_BUCKET`
+## Run the application
 
-Keep secrets in a secret manager or environment-specific encrypted store in production.
+Start MongoDB if it is not already running.
 
-**Testing, Linting & Quality**
-
-- Backend unit/integration tests: `cd backend && pytest`
-- Format & lint (backend):
+### Start the backend
 
 ```bash
 cd backend
-black .
-isort .
-flake8 .
-mypy .
+source .venv/bin/activate
+uvicorn server:app --reload --host 0.0.0.0 --port 8000
 ```
 
-- Frontend tests: `cd frontend && yarn test`
-
-CI recommendations:
-- Run `pytest` (backend) and `yarn test` (frontend) on PRs
-- Run linters & type checks as separate CI stages
-- Build frontend artifact and run a lightweight integration smoke test against the backend test instance
-
-**Deployment guidance (production)**
-
-- Run the backend behind a process manager (systemd) or container orchestrator (Docker + Kubernetes). Use an ASGI server (uvicorn/gunicorn with uvicorn workers) and a reverse proxy (NGINX) for TLS and static file serving.
-- Serve the built frontend as static assets from an S3-like storage or via NGINX.
-- Use environment-specific secrets (Vault/Secrets Manager) for `JWT_SECRET` and API keys.
-- Ensure MongoDB is production-grade: backups, monitoring, user ACLs, TLS.
-
-Example minimal systemd/production uvicorn command:
+### Start the frontend
 
 ```bash
-# run inside the backend virtualenv or container
-gunicorn -k uvicorn.workers.UvicornWorker server:app -b 0.0.0.0:8000 --workers 4
+cd frontend
+yarn start
 ```
 
-**Operational runbook / troubleshooting**
+Then open:
 
-- Error: `KeyError` on startup for `MONGO_URL` or `DB_NAME` — create `backend/.env` or export env vars.
-- Error: Mongo connection refused — ensure Mongo is running and `MONGO_URL` host/port are reachable.
-- Auth failures — verify `JWT_SECRET` matches across services or sessions; tokens are set as secure, httponly cookies.
-- File uploads failing — check Emergent storage credentials and `storage.py` initialization logs.
-- Messaging failures — check Twilio/WhatsApp tokens; logs appear at server startup (`refresh_messaging_cache`).
+```text
+http://localhost:3000
+```
 
-Logs & monitoring
-- Backend logs are configured with Python `logging`. Configure structured logging or integrate with a logging pipeline (ELK, Datadog).
-- Add health-checks and readiness endpoints for orchestration. The project exposes `/api/health`.
+The app redirects unauthenticated users to `/login`.
 
-**Security & compliance notes**
+## Key backend entry points
 
-- Cookies are set as `httponly` and `secure` where used. Review CORS and cookie policies if deploying behind different domains.
-- Rotate `JWT_SECRET` carefully — tokens may become invalid on rotation; consider token revocation strategies.
+- `backend/server.py` — FastAPI app start-up, CORS config, middleware, router registration
+- `backend/core.py` — DB connection, JWT generation, authentication helpers, role constants
+- `backend/models.py` — Pydantic models for patients, cases, billing, reminders, AI settings
+- `backend/routers/` — domain endpoints for patients, cases, pharmacy, billing, AI, admin, and exports
+- `backend/seed.py` — initial users and role setup
 
-**Useful files & pointers**
-- API entrypoint: [backend/server.py](backend/server.py#L1-L200)
-- Core infra & role constants: [backend/core.py](backend/core.py#L1-L200)
-- Routers: [backend/routers](backend/routers)
-- Frontend scripts: [frontend/package.json](frontend/package.json#L1-L80)
-- Seed data: [backend/seed.py](backend/seed.py#L1-L200)
+## Key frontend entry points
 
-**Contributing & contact**
+- `frontend/src/App.js` — main route configuration and role-based protection
+- `frontend/src/contexts/AuthContext.jsx` — authentication state and login/logout logic
+- `frontend/src/lib/api.js` — API client and formatting helpers
+- `frontend/src/pages/` — role-based dashboard and workflow pages
 
-- Run tests and linters before opening PRs.
-- Format code with `black` and `isort` for backend; keep frontend styles consistent with Tailwind conventions.
-- For high-priority incidents, contact the on-call owner listed in your internal directory. Add a pointer here when available.
+## Operational notes
 
----
+- The backend starts up default indexing and seeded data automatically.
+- The app includes a reminder scheduler and messaging refresh tasks during startup.
+- The project includes backup/restore scripts in `scripts/` and documentation in `scripts/README.md`.
 
-If you'd like, I can also:
-- Add a lightweight `docker-compose.yml` for local dev (Mongo + backend + frontend static), or
-- Create a GitHub Actions CI workflow that runs tests and linters on PRs.
+## Testing and validation
 
-View the updated README at the workspace root.
+The repository includes backend test files and test reports.
+
+To run backend tests:
+
+```bash
+cd backend
+pytest
+```
+
+To build the frontend:
+
+```bash
+cd frontend
+yarn build
+```
+
+## Production guidance
+
+This repository is structured for development and internal deployment, not as a turnkey SaaS deployment. Before production use:
+
+- rotate the default seeded passwords
+- use a real `JWT_SECRET`
+- configure secure MongoDB access and backups
+- configure CORS explicitly
+- enable real messaging/storage credentials if those features are needed
+- review admin and role permissions before exposing the app publicly
+
+## License
+
+No explicit license file is present in this repository, so the repository should be treated as unlicensed unless a specific project policy states otherwise.
+
+## Summary
+
+Sparsa Homeoclinic is a full-stack clinic management system focused on operational workflows rather than a generic starter app. It is designed around real medical-clinic role boundaries: reception, doctors, pharmacy, PRO/billing, and admin.
