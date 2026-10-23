@@ -287,7 +287,7 @@ function PaymentProofPanel({ caseId }) {
                 </div>
               </div>
               <div className="flex gap-1">
-                <a href={`${process.env.REACT_APP_BACKEND_URL}/api/attachments/${p.id}/download`} target="_blank" rel="noreferrer" className="text-xs px-2.5 py-1.5 border border-gray-200 rounded hover:border-teal-600 hover:text-teal-700">View</a>
+                <a href={`/api/attachments/${p.id}/download`} target="_blank" rel="noreferrer" className="text-xs px-2.5 py-1.5 border border-gray-200 rounded hover:border-teal-600 hover:text-teal-700">View</a>
                 <button onClick={() => remove(p)} className="text-xs px-2.5 py-1.5 border border-gray-200 rounded hover:border-red-500 hover:text-red-600 inline-flex items-center gap-1" data-testid={`del-proof-${p.id}`}><Trash2 size={12} /></button>
               </div>
             </li>
